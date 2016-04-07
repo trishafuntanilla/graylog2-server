@@ -55,7 +55,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class EsIndexRangeServiceTest {
     @ClassRule
     public static final EmbeddedElasticsearch EMBEDDED_ELASTICSEARCH = newEmbeddedElasticsearchRule()
-            .settings(Settings.settingsBuilder().put("action.auto_create_index", false).build())
+            .settings(Settings.builder().put("action.auto_create_index", false).build())
             .build();
     private static final ImmutableSet<String> INDEX_NAMES = ImmutableSet.of("graylog", "graylog_1", "graylog_2", "graylog_3", "graylog_4", "graylog_5", "ignored");
     private static final ElasticsearchConfiguration ELASTICSEARCH_CONFIGURATION = new ElasticsearchConfiguration() {
