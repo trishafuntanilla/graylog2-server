@@ -173,7 +173,7 @@ public class Messages {
                 .setIndex(index)
                 .setContentType(XContentType.JSON)
                 .setOpType(IndexRequest.OpType.INDEX)
-                .setType(IndexMapping.TYPE_MESSAGE)
+                .setType(source.get("doctype_") == null ? IndexMapping.TYPE_MESSAGE : String.valueOf(source.get("doctype_")))
                 .setConsistencyLevel(WriteConsistencyLevel.ONE);
     }
 
