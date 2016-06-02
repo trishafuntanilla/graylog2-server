@@ -2,6 +2,7 @@ package org.graylog2.periodical;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Inject;
 
@@ -21,6 +22,12 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 
+/**
+ * Reloads the lookup data map from MongoDB periodically.
+ * 
+ * @author tfuntani
+ *
+ */
 public class LookupMapLoaderPeriodical extends Periodical {
 
 	private static final Logger LOG = LoggerFactory.getLogger(LookupMapLoaderPeriodical.class);
@@ -81,12 +88,15 @@ public class LookupMapLoaderPeriodical extends Periodical {
 	@Override
 	public synchronized void doRun() {
 		
-		Map<Pair<String, String>, Map<String, String>> reloadMap = new HashMap<Pair<String, String>, Map<String, String>>();
+		ConcurrentHashMap<Pair<String, String>, Map<String, String>> reloadMap = new ConcurrentHashMap<Pair<String, String>, Map<String, String>>();
 
 		if (!mongoConnection.getDatabase().collectionExists(LOOKUP)) {
+		
 			LOG.info("Lookup collection does not exist. Creating lookup collection...");
 			mongoConnection.getDatabase().createCollection(LOOKUP, null);
+		
 		} else {
+			
 			try {
 				DBCollection collection = mongoConnection.getDatabase().getCollection(LOOKUP);
 				DBCursor cursor = collection.find();
@@ -137,6 +147,7 @@ public class LookupMapLoaderPeriodical extends Periodical {
 			} catch(Exception e) {
 				LOG.error("Exception while loading lookup data map.", e);
 			}
+			
 		}
 		
 	}
