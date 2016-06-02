@@ -31,12 +31,12 @@ import com.mongodb.DBObject;
 public class LookupMapLoaderPeriodical extends Periodical {
 
 	private static final Logger LOG = LoggerFactory.getLogger(LookupMapLoaderPeriodical.class);
-	
+
 	private static final String LOOKUP = "lookup";
 	private static final String KEY = "key";
 	private static final String VALUE = "value";
 	private static final String MAPPINGS = "mappings";
-	
+
 	private final MongoConnection mongoConnection;
 
 	@Inject
@@ -87,53 +87,53 @@ public class LookupMapLoaderPeriodical extends Periodical {
 
 	@Override
 	public synchronized void doRun() {
-		
+
 		ConcurrentHashMap<Pair<String, String>, Map<String, String>> reloadMap = new ConcurrentHashMap<Pair<String, String>, Map<String, String>>();
 
 		if (!mongoConnection.getDatabase().collectionExists(LOOKUP)) {
-		
+
 			LOG.info("Lookup collection does not exist. Creating lookup collection...");
 			mongoConnection.getDatabase().createCollection(LOOKUP, null);
-		
+
 		} else {
-			
+
 			try {
 				DBCollection collection = mongoConnection.getDatabase().getCollection(LOOKUP);
 				DBCursor cursor = collection.find();
 				while (cursor.hasNext()) {							
 					DBObject doc = cursor.next();
-	
+
 					JsonParser parser = new JsonParser();
 					JsonElement je = parser.parse(doc.toString());
 					JsonObject json = je.getAsJsonObject();
-		
+
 					String key = json.get(KEY).getAsString();
 					String value = json.get(VALUE).getAsString();
 					Pair<String, String> kvPair = new ImmutablePair<String, String>(key, value);
-		
+
 					JsonArray mappings = json.getAsJsonArray(MAPPINGS);
 					JsonElement mappingsObject = mappings.get(0);	
 					JsonObject map = mappingsObject.getAsJsonObject();
-		
+
 					LOG.info("Adding <" + key + "> : <" + value + "> pair mappings...");
-					
+
 					Map<String, String> dm = new HashMap<String, String>();
 					for (Map.Entry<String, JsonElement> entry : map.entrySet()) {
 						dm.put(entry.getKey(), entry.getValue().getAsString());
 					}
-					
+
 					LOG.info("Data map for <" + key + "> : <" + value + "> pair has " + dm.size() + " mappings.");
-					
+
 					// compare: if lookup data map doesn't already have this key-value pair, put it
 					if (!LookupDataMap.dataMap.containsKey(kvPair)) {
 						LookupDataMap.dataMap.put(kvPair, dm);
 					}
-	
+
 					// place key-value pair and mapping to reload map for further comparison
 					reloadMap.put(kvPair, dm);
-		
+
 				}
-				
+
 				// final compare: remove those that weren't part of the reload
 				for (Map.Entry<Pair<String, String>, Map<String, String>> entry : LookupDataMap.dataMap.entrySet()) {
 					Pair<String, String> kvPair = entry.getKey();
@@ -141,15 +141,15 @@ public class LookupMapLoaderPeriodical extends Periodical {
 						LookupDataMap.dataMap.remove(kvPair);
 					}
 				}
-				
+
 				LOG.info("Completed lookup data map refresh.");
-				
+
 			} catch(Exception e) {
 				LOG.error("Exception while loading lookup data map.", e);
 			}
-			
+
 		}
-		
+
 	}
 
 }
