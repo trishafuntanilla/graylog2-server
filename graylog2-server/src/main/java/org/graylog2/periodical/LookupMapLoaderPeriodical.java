@@ -18,6 +18,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mongodb.BasicDBObject;
+import com.mongodb.BasicDBObjectBuilder;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -93,7 +95,8 @@ public class LookupMapLoaderPeriodical extends Periodical {
 		if (!mongoConnection.getDatabase().collectionExists(LOOKUP)) {
 
 			LOG.info("Lookup collection does not exist. Creating lookup collection...");
-			mongoConnection.getDatabase().createCollection(LOOKUP, null);
+			DBObject options = BasicDBObjectBuilder.start().add("capped", false).get();
+			mongoConnection.getDatabase().createCollection(LOOKUP, options);
 
 		} else {
 
