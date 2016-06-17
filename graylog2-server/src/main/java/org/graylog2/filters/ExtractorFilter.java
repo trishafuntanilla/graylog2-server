@@ -39,9 +39,6 @@ import java.util.concurrent.TimeUnit;
 public class ExtractorFilter implements MessageFilter {
     private static final Logger LOG = LoggerFactory.getLogger(ExtractorFilter.class);
     private static final String NAME = "Extractor";
-    
-	private static final String FIELD_INVALID = "parsing_failed";	// add parsing_failed field if msg failed extractor for whatever reason
-	private static final String FIELD_INVALID_VALUE = "fail";
 
     private Cache<String, List<Extractor>> cache = CacheBuilder.newBuilder()
             .expireAfterWrite(1, TimeUnit.SECONDS)
@@ -58,7 +55,6 @@ public class ExtractorFilter implements MessageFilter {
     public boolean filter(Message msg) {
     	
         if (msg.getSourceInputId() == null) {      	
-    		msg.addField(FIELD_INVALID, FIELD_INVALID_VALUE);
             return false;
         }
 
@@ -67,7 +63,6 @@ public class ExtractorFilter implements MessageFilter {
                 extractor.runExtractor(msg);
             } catch (Exception e) {
                 extractor.incrementExceptions();
-                msg.addField(FIELD_INVALID, FIELD_INVALID_VALUE);
                 LOG.error("Could not apply extractor " + extractor.getTitle() + " (id=" + extractor.getId() + ")", e);      
             }
         }

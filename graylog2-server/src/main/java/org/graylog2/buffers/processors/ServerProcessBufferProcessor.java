@@ -43,6 +43,9 @@ import static com.codahale.metrics.MetricRegistry.name;
  * @author Dennis Oelkers <dennis@torch.sh>
  */
 public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
+	
+	private static final String FIELD_SIZE = "size";
+	
     private final Configuration configuration;
     private final ServerStatus serverStatus;
     private final Journal journal;
@@ -81,7 +84,7 @@ public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
     }
 
     @Override
-    protected void handleMessage(@Nonnull Message msg) {
+    protected void handleMessage(@Nonnull Message msg, int rawMsgSize) {
 
         if (filterRegistry.size() == 0)
             throw new RuntimeException("Empty filter registry!");
@@ -107,6 +110,8 @@ public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
                 msg.recordTiming(serverStatus, timerName, elapsedNanos);
             }
         }
+
+        msg.addField(FIELD_SIZE, rawMsgSize);
 
         LOG.debug("Finished processing message. Writing to output buffer.");
         outputBuffer.insertBlocking(msg);

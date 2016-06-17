@@ -58,7 +58,7 @@ public abstract class ProcessBufferProcessor implements WorkHandler<MessageEvent
         decodingProcessor.onEvent(event, 0L, false);
 
         if (event.isSingleMessage()) {
-            dispatchMessage(event.getMessage());
+            dispatchMessage(event.getMessage(), event.getRaw().getPayload().length);
         } else {
             final Collection<Message> messageList = event.getMessages();
             if (messageList == null) {
@@ -67,19 +67,19 @@ public abstract class ProcessBufferProcessor implements WorkHandler<MessageEvent
             }
 
             for (final Message message : messageList) {
-                dispatchMessage(message);
+                dispatchMessage(message, message.getMessage().getBytes().length);
             }
         }
     }
 
-    private void dispatchMessage(final Message msg) {
+    private void dispatchMessage(final Message msg, final int rawMsgSize) {
         incomingMessages.mark();
 
         LOG.debug("Starting to process message <{}>.", msg.getId());
 
         try (final Timer.Context ignored = processTime.time()) {
             LOG.debug("Finished processing message <{}>. Writing to output buffer.", msg.getId());
-            handleMessage(msg);
+            handleMessage(msg, rawMsgSize);
         } catch (Exception e) {
             LOG.warn("Unable to process message <{}>: {}", msg.getId(), e);
         } finally {
@@ -87,7 +87,7 @@ public abstract class ProcessBufferProcessor implements WorkHandler<MessageEvent
         }
     }
 
-    protected abstract void handleMessage(Message msg);
+    protected abstract void handleMessage(Message msg, int rawMsgSize);
 
     public void setDecodingProcessor(DecodingProcessor decodingProcessor) {
         this.decodingProcessor = decodingProcessor;
