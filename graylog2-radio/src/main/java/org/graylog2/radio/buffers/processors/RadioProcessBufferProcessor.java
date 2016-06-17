@@ -77,4 +77,26 @@ public class RadioProcessBufferProcessor extends ProcessBufferProcessor {
             LOG.error("[Error #{}] Caught exception while sending message to Radio transport: ", errors, e);
         }
     }
+
+    @Override
+    protected void handleMessage(Message msg, int rawMsgSize) {
+
+        try {
+            radioTransport.send(msg);
+            globalOutgoingMessages.inc();
+            errorCount.set(0);
+            if (LOG.isDebugEnabled())
+                LOG.debug("Message <{}> written to RadioTransport.", msg.getId());
+        } catch (Exception e) {
+            int errors = errorCount.addAndGet(1);
+            if (radioTransportMaxErrors > 0 && errors >= radioTransportMaxErrors) {
+                serverStatus.pauseMessageProcessing();
+                serverStatus.overrideLoadBalancerDead();
+                LOG.error("Number of Radio transport errors exceeded threshold ({}), switching to lb:dead.", radioTransportMaxErrors);
+            }
+            erroredMessages.mark();
+            LOG.error("[Error #{}] Caught exception while sending message to Radio transport: ", errors, e);
+        }
+
+    }
 }

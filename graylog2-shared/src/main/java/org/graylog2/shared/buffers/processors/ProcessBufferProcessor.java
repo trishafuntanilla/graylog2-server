@@ -87,6 +87,8 @@ public abstract class ProcessBufferProcessor implements WorkHandler<MessageEvent
         }
     }
 
+    protected abstract void handleMessage(Message msg);
+    
     protected abstract void handleMessage(Message msg, int rawMsgSize);
 
     public void setDecodingProcessor(DecodingProcessor decodingProcessor) {

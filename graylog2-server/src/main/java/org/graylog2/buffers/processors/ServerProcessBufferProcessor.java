@@ -121,4 +121,37 @@ public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
     List<MessageFilter> getFilterRegistry() {
         return filterRegistry;
     }
+
+	@Override
+	protected void handleMessage(Message msg) {
+		
+		if (filterRegistry.size() == 0)
+            throw new RuntimeException("Empty filter registry!");
+
+        for (final MessageFilter filter : filterRegistry) {
+            final String timerName = name(filter.getClass(), "executionTime");
+            final Timer timer = metricRegistry.timer(timerName);
+            final Timer.Context timerContext = timer.time();
+
+            try {
+                LOG.debug("Applying filter [{}] on message <{}>.", filter.getName(), msg.getId());
+
+                if (filter.filter(msg)) {
+                    LOG.debug("Filter [{}] marked message <{}> to be discarded. Dropping message.", filter.getName(), msg.getId());
+                    filteredOutMessages.mark();
+                    journal.markJournalOffsetCommitted(msg.getJournalOffset());
+                    return;
+                }
+            } catch (Exception e) {
+                LOG.error("Could not apply filter [" + filter.getName() +"] on message <" + msg.getId() +">: ", e);
+            } finally {
+                final long elapsedNanos = timerContext.stop();
+                msg.recordTiming(serverStatus, timerName, elapsedNanos);
+            }
+        }
+
+        LOG.debug("Finished processing message. Writing to output buffer.");
+        outputBuffer.insertBlocking(msg);
+		
+	}
 }
