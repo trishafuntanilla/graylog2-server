@@ -31,6 +31,7 @@ import org.graylog2.shared.journal.Journal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import java.util.Comparator;
 import java.util.List;
@@ -42,7 +43,6 @@ import static com.codahale.metrics.MetricRegistry.name;
  * @author Dennis Oelkers <dennis@torch.sh>
  */
 public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
-	
     private final Configuration configuration;
     private final ServerStatus serverStatus;
     private final Journal journal;
@@ -80,15 +80,10 @@ public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
         this.filteredOutMessages = metricRegistry.meter(name(ProcessBufferProcessor.class, "filteredOutMessages"));
     }
 
-    // default visibility for tests
-    List<MessageFilter> getFilterRegistry() {
-        return filterRegistry;
-    }
+    @Override
+    protected void handleMessage(@Nonnull Message msg) {
 
-	@Override
-	protected void handleMessage(Message msg) {
-		
-		if (filterRegistry.size() == 0)
+        if (filterRegistry.size() == 0)
             throw new RuntimeException("Empty filter registry!");
 
         for (final MessageFilter filter : filterRegistry) {
@@ -115,6 +110,10 @@ public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
 
         LOG.debug("Finished processing message. Writing to output buffer.");
         outputBuffer.insertBlocking(msg);
-		
-	}
+    }
+
+    // default visibility for tests
+    List<MessageFilter> getFilterRegistry() {
+        return filterRegistry;
+    }
 }

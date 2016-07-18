@@ -77,5 +77,4 @@ public class RadioProcessBufferProcessor extends ProcessBufferProcessor {
             LOG.error("[Error #{}] Caught exception while sending message to Radio transport: ", errors, e);
         }
     }
-    
 }
