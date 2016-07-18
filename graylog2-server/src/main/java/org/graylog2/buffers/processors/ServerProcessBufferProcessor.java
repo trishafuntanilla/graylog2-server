@@ -31,7 +31,6 @@ import org.graylog2.shared.journal.Journal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import java.util.Comparator;
 import java.util.List;
@@ -43,8 +42,6 @@ import static com.codahale.metrics.MetricRegistry.name;
  * @author Dennis Oelkers <dennis@torch.sh>
  */
 public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
-	
-	private static final String FIELD_SIZE = "size";
 	
     private final Configuration configuration;
     private final ServerStatus serverStatus;
@@ -81,40 +78,6 @@ public class ServerProcessBufferProcessor extends ProcessBufferProcessor {
 
         this.outputBuffer = outputBuffer;
         this.filteredOutMessages = metricRegistry.meter(name(ProcessBufferProcessor.class, "filteredOutMessages"));
-    }
-
-    @Override
-    protected void handleMessage(@Nonnull Message msg, int rawMsgSize) {
-
-        if (filterRegistry.size() == 0)
-            throw new RuntimeException("Empty filter registry!");
-
-        for (final MessageFilter filter : filterRegistry) {
-            final String timerName = name(filter.getClass(), "executionTime");
-            final Timer timer = metricRegistry.timer(timerName);
-            final Timer.Context timerContext = timer.time();
-
-            try {
-                LOG.debug("Applying filter [{}] on message <{}>.", filter.getName(), msg.getId());
-
-                if (filter.filter(msg)) {
-                    LOG.debug("Filter [{}] marked message <{}> to be discarded. Dropping message.", filter.getName(), msg.getId());
-                    filteredOutMessages.mark();
-                    journal.markJournalOffsetCommitted(msg.getJournalOffset());
-                    return;
-                }
-            } catch (Exception e) {
-                LOG.error("Could not apply filter [" + filter.getName() +"] on message <" + msg.getId() +">: ", e);
-            } finally {
-                final long elapsedNanos = timerContext.stop();
-                msg.recordTiming(serverStatus, timerName, elapsedNanos);
-            }
-        }
-
-        msg.addField(FIELD_SIZE, rawMsgSize);
-
-        LOG.debug("Finished processing message. Writing to output buffer.");
-        outputBuffer.insertBlocking(msg);
     }
 
     // default visibility for tests
