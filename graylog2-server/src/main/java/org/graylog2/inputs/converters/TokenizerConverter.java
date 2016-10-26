@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import org.graylog2.plugin.inputs.Converter;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -29,6 +30,11 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 public class TokenizerConverter extends Converter {
     // ┻━┻ ︵ ¯\(ツ)/¯ ︵ ┻━┻
     private static final Pattern PATTERN = Pattern.compile("(?:^|\\s)(?:([\\w-]+)\\s?=\\s?((?:\"[^\"]+\")|(?:'[^']+')|(?:[\\S]+)))");
+    
+    // ┻━┻ ︵ ¯\(ツ)/¯ ︵ ┻━┻
+    // for when key=value pairs are separated by commas or pipes
+    // should still work if they're just separated by white spaces (default)
+    private static final Pattern PATTERN_2 = Pattern.compile("(?:^|\\s|,|)(?:([\\w-]+),?=,?((?:\"[^\"]+\")|(?:'[^']+')|(?:[^,\\s|]+)))");
 
     public TokenizerConverter(Map<String, Object> config) {
         super(Type.TOKENIZER, config);
@@ -43,14 +49,23 @@ public class TokenizerConverter extends Converter {
         if (value.contains("=")) {
             final ImmutableMap.Builder<String, String> fields = ImmutableMap.builder();
 
-            Matcher m = PATTERN.matcher(value);
+            Matcher m = PATTERN_2.matcher(value);
+            Map<String, String> pairs = new HashMap<String, String>();
             while (m.find()) {
                 if (m.groupCount() != 2) {
                     continue;
                 }
-
-                fields.put(removeQuotes(m.group(1)), removeQuotes(m.group(2)));
+                
+                // avoid duplicates by putting it on a map first, replacing previous key value with new one
+                pairs.put(removeQuotes(m.group(1)), removeQuotes(m.group(2)));
+                
+                // fields.put(removeQuotes(m.group(1)), removeQuotes(m.group(2)));
             }
+            
+            // after collecting all pairs, put them to fields
+            for (Map.Entry<String, String> entry : pairs.entrySet()) {
+            	fields.put(entry.getKey(), entry.getValue());
+          	}
 
             return fields.build();
         } else {
