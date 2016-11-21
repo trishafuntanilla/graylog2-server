@@ -36,6 +36,9 @@ public class TokenizerConverter extends Converter {
     // should still work if they're just separated by white spaces (default)
     private static final Pattern PATTERN_2 = Pattern.compile("(?:^|\\s|,|)(?:([\\w-]+),?=,?((?:\"[^\"]+\")|(?:'[^']+')|(?:[^,\\s|]+)))");
 
+    // pattern for skipping those with consecutive =
+    Pattern SKIP_PATTERN = Pattern.compile("(\\=)\\1+");
+    
     public TokenizerConverter(Map<String, Object> config) {
         super(Type.TOKENIZER, config);
     }
@@ -47,6 +50,13 @@ public class TokenizerConverter extends Converter {
         }
 
         if (value.contains("=")) {
+        	
+        	// if there are multiple consecutive '=' in the message, it will mess up the key=value extractions so skip it...
+        	Matcher s = SKIP_PATTERN.matcher(value);
+        	if (s.find()) {
+        		return Collections.emptyMap();
+        	}
+        	
             final ImmutableMap.Builder<String, String> fields = ImmutableMap.builder();
 
             Matcher m = PATTERN_2.matcher(value);
