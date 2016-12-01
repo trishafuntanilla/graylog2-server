@@ -40,7 +40,7 @@ const StreamsPage = React.createClass({
             streams. You can for example create a stream that contains all SSH logins and configure
             to be alerted whenever there are more logins than usual.
 
-            Read more about streams in the <DocumentationLink page={DocsHelper.PAGES.STREAMS} text="documentation"/>.</span>
+          </span>
 
           <span>
             Take a look at the

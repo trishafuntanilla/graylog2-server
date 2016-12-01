@@ -39,7 +39,6 @@ const StreamOutputsPage = React.createClass({
               You can also reuse outputs that are already running for other streams.
 
               A global view of all configured outputs is available <a href="@routes.OutputsController.index()">here</a>.
-              You can find output plugins on <a href="https://marketplace.graylog.org/" target="_blank">the Graylog Marketplace</a>.
             </p>
 
             <SupportLink>

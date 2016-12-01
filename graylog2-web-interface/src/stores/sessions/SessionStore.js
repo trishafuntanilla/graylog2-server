@@ -29,8 +29,6 @@ const SessionStore = Reflux.createStore({
       .then((sessionInfo) => {
         return { sessionId: sessionInfo.session_id, username: username };
       });
-
-    console.log(host);
     SessionActions.login.promise(promise);
   },
   logout(sessionId) {

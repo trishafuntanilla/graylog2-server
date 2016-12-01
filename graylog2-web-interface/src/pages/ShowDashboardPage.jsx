@@ -81,8 +81,7 @@ const ShowDashboardPage = React.createClass({
       <Row className="content">
         <Col md={12}>
           <Alert className="no-widgets">
-            This dashboard has no widgets yet. Learn how to add widgets in the <DocumentationLink
-            page={DocsHelper.PAGES.DASHBOARDS} text="documentation"/>.
+            This dashboard has no widgets yet.
           </Alert>
         </Col>
       </Row>

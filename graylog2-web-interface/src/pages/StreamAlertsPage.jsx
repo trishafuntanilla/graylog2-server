@@ -101,9 +101,9 @@ const StreamAlertsPage = React.createClass({
               <h2>Receivers</h2>
 
               <p className="description">
-                The following Graylog users will be notified about alerts via email if they have configured
-                an email address in their profile. You can also add any other email address to the alert
-                receivers if it has no Graylog user associated.
+                The following users will be notified about alerts via email if they have configured
+                an email address in their profile. You can add any email address to the alert
+                receivers.
               </p>
 
               <AlertReceiversList receivers={stream.alert_receivers} streamId={stream.id}/>

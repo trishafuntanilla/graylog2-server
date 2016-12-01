@@ -67,7 +67,7 @@ const LoginPage = React.createClass({
   render() {
     if (this.state.validatingSession) {
       return (
-        <LoadingPage />
+        <LoggedInPage />
       );
     }
 

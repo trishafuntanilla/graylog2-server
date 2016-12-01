@@ -32,9 +32,7 @@ const NodeMaintenanceDropdown = React.createClass({
             </LinkContainer>
           </IfPermitted>
 
-          <MenuItem href={apiBrowserURI} target="_blank">
-            API Browser <i className="fa fa-external-link"/>
-          </MenuItem>
+
         </DropdownButton>
       </ButtonGroup>
     );
