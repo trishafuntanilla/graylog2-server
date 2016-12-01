@@ -52,11 +52,6 @@ const PageHeader = React.createClass({
             </p>
             }
 
-            {children[1] &&
-            <SupportLink>
-              {children[1]}
-            </SupportLink>
-            }
           </Col>
 
           {children[2] &&

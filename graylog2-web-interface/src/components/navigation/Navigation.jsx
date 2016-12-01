@@ -141,10 +141,7 @@ const Navigation = React.createClass({
 
     return (
       <Navbar inverse fluid fixedTop>
-        <Navbar.Header>
-          <Navbar.Brand>{brand}</Navbar.Brand>
-          <Navbar.Toggle />
-        </Navbar.Header>
+
         <Navbar.Collapse eventKey={0}>
           <Nav navbar>
             <IfPermitted permissions={['searches:absolute', 'searches:relative', 'searches:keyword']}>
@@ -236,8 +233,6 @@ const Navigation = React.createClass({
                 </a>
               </LinkContainer>
             </li>
-            <HelpMenu active={this._isActive(Routes.GETTING_STARTED)}/>
-            <UserMenu fullName={this.props.fullName} loginName={this.props.loginName}/>
             {AppConfig.gl2DevMode() ?
               <NavItem className="notification-badge-link">
               <span className="badge" style={{backgroundColor: '#ff3b00'}}>DEV</span>

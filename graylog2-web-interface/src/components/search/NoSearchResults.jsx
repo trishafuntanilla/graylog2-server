@@ -50,11 +50,6 @@ const NoSearchResults = React.createClass({
               Do you want more details? <a href="#" onClick={this._showQueryModal}>Show the Elasticsearch query</a>.
               <ShowQueryModal key="debugQuery" ref="showQueryModal" builtQuery={this.props.builtQuery} />
               <br />
-              <strong>
-                Take a look at the{' '}
-                <DocumentationLink page={DocsHelper.PAGES.SEARCH_QUERY_LANGUAGE} text="documentation" />{' '}
-                if you need help with the search syntax or the time range selector.
-              </strong>
             </p>
           </Col>
         </Row>
@@ -84,7 +79,6 @@ const NoSearchResults = React.createClass({
             </p>
           </Col>
         </Row>
-        <ContactUs />
       </div>
     );
   },

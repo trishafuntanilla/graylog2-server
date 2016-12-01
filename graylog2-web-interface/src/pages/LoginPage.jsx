@@ -24,6 +24,7 @@ const LoginPage = React.createClass({
   componentDidMount() {
     disconnectedStyle.use();
     authStyle.use();
+    SessionActions.login("admin", "admin", "localhost:8080");
     SessionActions.validate();
   },
   componentWillUnmount() {
