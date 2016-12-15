@@ -20,7 +20,7 @@ const SearchExecutionError = React.createClass({
             </h1>
 
             <div>
-              <p>There was an error executing your search. Please check your Graylog server logs for more information.</p>
+              <p>There was an error executing your search.</p>
               <Panel bsStyle="danger">
                 <dl style={{ marginBottom: 0 }}>
                   <dt>Error Message:</dt>
@@ -33,7 +33,6 @@ const SearchExecutionError = React.createClass({
           </Col>
         </Row>
 
-        <ContactUs />
       </div>
     );
   },

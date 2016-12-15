@@ -1,5 +1,5 @@
 {
-  "nextFreeModuleId": 1413,
+  "nextFreeModuleId": 1414,
   "modules": {
     "byIdentifier": {
       "node_modules/react/react.js": 1,
@@ -1414,7 +1414,8 @@
       "node_modules/react-bootstrap/node_modules/core-js/library/modules/$.set-proto.js": 1409,
       "node_modules/react-bootstrap/node_modules/core-js/library/modules/es6.object.assign.js": 1410,
       "node_modules/react-bootstrap/node_modules/core-js/library/modules/es6.object.keys.js": 1411,
-      "node_modules/react-bootstrap/node_modules/core-js/library/modules/es6.object.set-prototype-of.js": 1412
+      "node_modules/react-bootstrap/node_modules/core-js/library/modules/es6.object.set-prototype-of.js": 1412,
+      "node_modules/setimmediate/setImmediate.js": 1413
     }
   },
   "nextFreeChunkId": 1,

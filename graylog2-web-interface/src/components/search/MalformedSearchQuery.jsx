@@ -75,11 +75,6 @@ const MalformedSearchQuery = React.createClass({
 
             <p className="description">
               The search query could not be executed, please correct it and try again.{' '}
-              <strong>
-                Take a look at the{' '}
-                <DocumentationLink page={DocsHelper.PAGES.SEARCH_QUERY_LANGUAGE} text="documentation" />{' '}
-                if you need help with the search syntax.
-              </strong>
             </p>
           </Col>
         </Row>
@@ -90,7 +85,6 @@ const MalformedSearchQuery = React.createClass({
           </Col>
         </Row>
 
-        <ContactUs />
       </div>
     );
   },

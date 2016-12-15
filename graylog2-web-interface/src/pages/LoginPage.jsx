@@ -3,6 +3,7 @@ import Reflux from 'reflux';
 import { Row, Input, ButtonInput, Alert } from 'react-bootstrap';
 
 import LoadingPage from './LoadingPage';
+import LoggedInPage from './LoggedInPage';
 
 import StoreProvider from 'injection/StoreProvider';
 const SessionStore = StoreProvider.getStore('Session');
@@ -24,7 +25,7 @@ const LoginPage = React.createClass({
   componentDidMount() {
     disconnectedStyle.use();
     authStyle.use();
-    SessionActions.login("admin", "admin", "localhost:8080");
+    SessionActions.login("admin", "admin", document.location.host);
     SessionActions.validate();
   },
   componentWillUnmount() {
