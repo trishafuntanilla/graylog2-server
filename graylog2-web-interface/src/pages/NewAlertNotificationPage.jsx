@@ -20,20 +20,17 @@ const NewAlertNotificationPage = React.createClass({
           <PageHeader title="New alert notification">
             <span>
               Create a new notification that you can use to not miss any of your alerts.
+            <br/><br/>
+            <strong>Remember to assign the notifications to use in the alert conditions page.</strong>
             </span>
 
-            <span>
-              Remember to assign the notifications to use in the alert conditions page.
-            </span>
+            <span></span>
 
             <span>
               <LinkContainer to={Routes.ALERTS.NOTIFICATIONS}>
                 <Button bsStyle="info">Manage notifications</Button>
               </LinkContainer>
               &nbsp;
-              <Button bsStyle="info" href="https://marketplace.graylog.org/" target="_blank">
-                <i className="fa fa-external-link" />&nbsp; Find more notifications
-              </Button>
             </span>
           </PageHeader>
 

@@ -50,10 +50,6 @@ const NodesActions = React.createClass({
           <Button bsStyle="info">Metrics</Button>
         </LinkContainer>
 
-        <Button bsStyle="info" href={apiBrowserURI} target="_blank">
-          <i className="fa fa-external-link"/>&nbsp; API browser
-        </Button>
-
         <DropdownButton title="More actions" id={`more-actions-dropdown-${this.props.node.node_id}`} pullRight>
           <IfPermitted permissions="processing:changestate">
             <MenuItem onSelect={this._toggleMessageProcessing}>

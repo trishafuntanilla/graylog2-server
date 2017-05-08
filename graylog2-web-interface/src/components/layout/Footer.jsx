@@ -24,7 +24,7 @@ const Footer = React.createClass({
 
     return (
       <div id="footer">
-        Graylog {this.state.system.version} on {this.state.system.hostname} ({this.state.jvm.info})
+        Version: {this.state.system.version} on {this.state.system.hostname} ({this.state.jvm.info})
       </div>
     );
   },

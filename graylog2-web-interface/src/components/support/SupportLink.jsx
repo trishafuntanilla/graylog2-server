@@ -13,8 +13,6 @@ const SupportLink = React.createClass({
           <tr>
             <td style={{width: '40px'}}>
               <span className={classNames}>
-                <i className="fa fa-circle fa-stack-2x"/>
-                <i className="fa fa-lightbulb-o fa-stack-1x fa-inverse"/>
               </span>
             </td>
             <td>

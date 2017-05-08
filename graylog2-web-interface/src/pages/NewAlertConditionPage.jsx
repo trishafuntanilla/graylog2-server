@@ -21,13 +21,11 @@ const NewAlertConditionPage = React.createClass({
         <div>
           <PageHeader title="New alert condition">
             <span>
-              Define an alert condition and configure the way Graylog will notify you when that condition is satisfied.
+              Define an alert condition and configure the way to notify you when that condition is satisfied.
             </span>
 
             <span>
-              Are the default conditions not flexible enough? You can write your own! Read more about alerting in
-              the{' '}
-              <DocumentationLink page={DocsHelper.PAGES.ALERTS} text="documentation" />.
+              Are the default conditions not flexible enough? You can write your own!
             </span>
 
             <span>

@@ -22,12 +22,11 @@ const AlertsPage = React.createClass({
         <div>
           <PageHeader title="Alerts overview">
             <span>
-              Alerts are triggered when conditions you define are satisfied. Graylog will automatically mark alerts as
+              Alerts are triggered when conditions you define are satisfied. Alerts will be automatically marked as
               resolved once the status of your conditions change.
             </span>
 
             <span>
-              Read more about alerting in the <DocumentationLink page={DocsHelper.PAGES.ALERTS} text="documentation" />.
             </span>
 
             <span>

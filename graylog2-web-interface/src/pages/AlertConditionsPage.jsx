@@ -21,12 +21,12 @@ const AlertConditionsPage = React.createClass({
         <div>
           <PageHeader title="Manage alert conditions">
             <span>
-              Alert conditions define situations that require your attention. Graylog will check those conditions
+              Alert conditions define situations that require your attention. Those conditions will be checked
               periodically and notify you when their statuses change.
             </span>
 
             <span>
-              Read more about alerting in the <DocumentationLink page={DocsHelper.PAGES.ALERTS} text="documentation" />.
+
             </span>
 
             <span>

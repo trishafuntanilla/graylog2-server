@@ -85,9 +85,6 @@ const DecoratorSidebar = React.createClass({
         <p className="description">
           Use drag and drop to modify the order in which decorators are processed.
         </p>
-        <p>
-          Read more about message decorators in the <DocumentationLink page={DocsHelper.PAGES.DECORATORS} text="documentation"/>.
-        </p>
       </Popover>
     );
 

@@ -45,10 +45,12 @@ const ShowMetricsPage = React.createClass({
         <span>
           <PageHeader title={title}>
             <span>
-              All Graylog nodes provide a set of internal metrics for diagnosis, debugging and monitoring. Note that you can access
+              All nodes provide a set of internal metrics for diagnosis, debugging and monitoring. Note that you can access
               all metrics via JMX, too.
+              <br/><br/>
+              <strong>This node is reporting a total of {names.length} metrics.</strong>
             </span>
-            <span>This node is reporting a total of {names.length} metrics.</span>
+            
           </PageHeader>
 
           <MetricsComponent names={names} namespace={namespace} nodeId={nodeId} filter={filter} />

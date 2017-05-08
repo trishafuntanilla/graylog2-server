@@ -20,7 +20,7 @@ const PageErrorOverview = React.createClass({
     return (
       <ul>
         {formattedErrors}
-        <li>Check your Graylog logs for more information.</li>
+        <li>Check your logs for more information.</li>
       </ul>
     );
   },

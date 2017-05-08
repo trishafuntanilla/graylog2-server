@@ -36,18 +36,17 @@ const StreamOutputsPage = React.createClass({
               </h1>
 
               <p className="description">
-                Graylog nodes can forward messages of streams via outputs. Launch or terminate as many outputs as you want here.
+                Nodes can forward messages of streams via outputs. Launch or terminate as many outputs as you want here.
                 You can also reuse outputs that are already running for other streams.
 
                 A global view of all configured outputs is available <a href="@routes.OutputsController.index()">here</a>.
-                You can find output plugins on <a href="https://marketplace.graylog.org/" target="_blank">the Graylog Marketplace</a>.
               </p>
 
-              <SupportLink>
+              <strong>
                 <i>Removing</i> an output removes it from this stream but it will still be in the list of available outputs.
                 Deleting an output <i>globally</i> will remove it from this and all other streams and terminate it.
                 You can see all defined outputs in details at the {' '} <LinkContainer to={Routes.SYSTEM.OUTPUTS}><a>global output list</a></LinkContainer>.
-              </SupportLink>
+            </strong><br/><br/>
             </Col>
           </Row>
           <OutputsComponent streamId={this.state.stream.id} permissions={this.state.currentUser.permissions}/>

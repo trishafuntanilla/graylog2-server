@@ -18,22 +18,17 @@ const AlertNotificationsPage = React.createClass({
         <div>
           <PageHeader title="Manage alert notifications">
             <span>
-              Notifications let you be aware of changes in your alert conditions status any time. Graylog can send
-              notifications directly to you or to other systems you use for that purpose.
+              Notifications let you be aware of changes in your alert conditions status any time. Notifications can be sent directly to you or to other systems you use for that purpose.
+            <br/><br/>
+              <strong>Remember to assign the notifications to use in the alert conditions page.</strong>
             </span>
 
-            <span>
-              Remember to assign the notifications to use in the alert conditions page.
-            </span>
+            <span></span>
 
             <span>
               <LinkContainer to={Routes.ALERTS.CONDITIONS}>
                 <Button bsStyle="info">Manage conditions</Button>
               </LinkContainer>
-              &nbsp;
-              <Button bsStyle="info" href="https://marketplace.graylog.org/" target="_blank">
-                <i className="fa fa-external-link" />&nbsp; Find more notifications
-              </Button>
             </span>
           </PageHeader>
 

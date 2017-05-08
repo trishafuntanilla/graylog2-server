@@ -69,8 +69,7 @@ const IndexSetConfigurationPage = React.createClass({
               and replication of messages coming from one or more streams.
             </span>
             <span>
-              You can learn more about the index model in the{' '}
-              <DocumentationLink page={DocsHelper.PAGES.INDEX_MODEL} text="documentation" />
+            
             </span>
             <span>
               <LinkContainer to={Routes.SYSTEM.INDICES.LIST}>

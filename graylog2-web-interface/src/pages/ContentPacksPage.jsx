@@ -18,8 +18,6 @@ const ContentPacksPage = React.createClass({
             </span>
 
             <span>
-              Find more content packs in {' '}
-              <a href="https://marketplace.graylog.org/" target="_blank">the Graylog Marketplace</a>.
             </span>
 
             <LinkContainer to={Routes.SYSTEM.CONTENTPACKS.EXPORT}>

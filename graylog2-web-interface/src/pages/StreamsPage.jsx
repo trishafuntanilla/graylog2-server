@@ -52,7 +52,6 @@ const StreamsPage = React.createClass({
             </span>
 
             <span>
-              Read more about streams in the <DocumentationLink page={DocsHelper.PAGES.STREAMS} text="documentation" />.
             </span>
 
             <IfPermitted permissions="streams:create">

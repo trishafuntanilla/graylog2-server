@@ -41,7 +41,7 @@ const NodeInputsPage = React.createClass({
       <DocumentTitle title={`Inputs of node ${this.state.node.short_node_id} / ${this.state.node.hostname}`}>
         <div>
           <PageHeader title={title}>
-            <span>Graylog nodes accept data via inputs. On this page you can see which inputs are running on this specific node.</span>
+            <span>Nodes accept data via inputs. On this page you can see which inputs are running on this specific node.</span>
 
             <span>
               You can launch and terminate inputs on your cluster <LinkContainer to={Routes.SYSTEM.INPUTS}><a>here</a></LinkContainer>.

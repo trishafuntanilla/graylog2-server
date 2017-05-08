@@ -40,14 +40,13 @@ const IndexerFailuresPage = React.createClass({
         <span>
           <PageHeader title="Indexer failures">
             <span>
-              This is a list of message index attempts that failed. A failure means that a message you sent to Graylog was{' '}
+              This is a list of message index attempts that failed. A failure means that a message you sent was{' '}
               properly processed but writing it to the Elasticsearch cluster failed. Note that the list is capped to a size{' '}
               of 50 MB so it will contain a lot of failure logs but not necessarily all that ever occurred.
             </span>
 
             <span>
-              Collection containing a total of {numeral(this.state.total).format('0,0')} indexer failures. Read more about
-              this topic in the <DocumentationLink page={DocsHelper.PAGES.INDEXER_FAILURES} text="documentation" />.
+              Collection containing a total of {numeral(this.state.total).format('0,0')} indexer failures.
             </span>
           </PageHeader>
           <Row className="content">

@@ -33,8 +33,7 @@ const IndexerClusterHealth = React.createClass({
           <h2>Elasticsearch cluster</h2>
 
           <SmallSupportLink>
-            The possible Elasticsearch cluster states and more related information is available in the{' '}
-            <DocumentationLink page={DocsHelper.PAGES.CONFIGURING_ES} text="Graylog documentation"/>.
+            The possible Elasticsearch cluster states.
           </SmallSupportLink>
 
           {content}

@@ -51,8 +51,7 @@ const NotificationsList = React.createClass({
         <Col md={12}>
           <h2>{title}</h2>
           <p className="description">
-            Notifications are triggered by Graylog and indicate a situation you should act upon. Many notification
-            types will also provide a link to the Graylog documentation if you need more information or assistance.
+            Notifications triggered indicate a situation you should act upon.
           </p>
 
           {content}
