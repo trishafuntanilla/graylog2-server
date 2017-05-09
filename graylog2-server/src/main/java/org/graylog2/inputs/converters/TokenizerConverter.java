@@ -48,6 +48,38 @@ public class TokenizerConverter extends Converter {
         if (isNullOrEmpty(value)) {
             return value;
         }
+        
+        // remove quotes from keys because the converters won't work with them
+        String str = value;
+        if (str.indexOf("\"=\"") > -1) {
+        	
+        	// remove quotes on first key
+			str = str.substring(1);
+			int index = str.indexOf("\"=\"");
+			str = str.substring(0, index) + str.substring(index+1);
+
+			// remove quotes on rest of keys
+			// ┻━┻ ︵ ¯\(ツ)/¯ ︵ ┻━┻
+			while (str.indexOf("\"=\"") > -1) {
+
+				if (str.indexOf("\" \"") > -1) {
+					index = str.indexOf("\" \"");
+				} else if (str.indexOf("\",\"") > -1) {
+					index = str.indexOf("\",\"");
+				} else if (str.indexOf("\"|\"") > -1) {
+					index = str.indexOf("\"|\"");
+				}
+
+				str = str.substring(0, index+1) + " " + str.substring(index+3);
+
+				index = str.indexOf("\"=\"");
+				str = str.substring(0, index) + str.substring(index+1);
+				
+			}
+			
+			value = str;
+        }
+
 
         if (value.contains("=")) {
         	
