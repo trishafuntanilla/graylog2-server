@@ -51,6 +51,16 @@ public class TokenizerConverter extends Converter {
         
         // remove quotes from keys because the converters won't work with them
         String str = value;
+		
+		// replace all ',' or '|' with space, as fields are getting merged if separator is one of these and value is empty
+		str = str.replaceAll("([\\,]|[\\|])", " ");
+		
+		// replace multiple consecutive '=' with space, k=v pairs extraction failing if message contains consecutive '=' chars 
+    	str = str.replaceAll("(\\=)\\1+", " ");
+		
+		//remove space in front and after '=' in key-value pair, as those fields are not getting extracted
+		str = str.replaceAll("((\\s+)=(\\s+))", "=");
+		
         if (str.indexOf("\"=\"") > -1) {
         	
         	// remove quotes on first key
@@ -77,17 +87,19 @@ public class TokenizerConverter extends Converter {
 				
 			}
 			
-			value = str;
         }
+		
+		value = str;
 
 
         if (value.contains("=")) {
         	
-        	// if there are multiple consecutive '=' in the message, it will mess up the key=value extractions so skip it...
+        	/*
+			// if there are multiple consecutive '=' in the message, it will mess up the key=value extractions so skip it...
         	Matcher s = SKIP_PATTERN.matcher(value);
         	if (s.find()) {
         		return Collections.emptyMap();
-        	}
+        	}*/
         	
             final ImmutableMap.Builder<String, String> fields = ImmutableMap.builder();
 
