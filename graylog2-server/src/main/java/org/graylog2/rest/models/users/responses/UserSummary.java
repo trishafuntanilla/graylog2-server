@@ -20,14 +20,18 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
+import org.graylog.autovalue.WithBeanGetter;
+import org.graylog2.rest.models.users.requests.Startpage;
 
 import javax.annotation.Nullable;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 @JsonAutoDetect
 @AutoValue
+@WithBeanGetter
 public abstract class UserSummary {
 
     @JsonProperty
@@ -58,7 +62,7 @@ public abstract class UserSummary {
     @Nullable
     public abstract Long sessionTimeoutMs();
 
-    @JsonProperty
+    @JsonProperty("read_only")
     public abstract boolean readOnly();
 
     @JsonProperty
@@ -66,11 +70,22 @@ public abstract class UserSummary {
 
     @JsonProperty
     @Nullable
-    public abstract Map<String, String> startpage();
+    public abstract Startpage startpage();
 
     @JsonProperty
     @Nullable
     public abstract Set<String> roles();
+
+    @JsonProperty("session_active")
+    public abstract boolean sessionActive();
+
+    @JsonProperty("last_activity")
+    @Nullable
+    public abstract Date lastActivity();
+
+    @JsonProperty("client_address")
+    @Nullable
+    public abstract String clientAddress();
 
     @JsonCreator
     public static UserSummary create(@JsonProperty("id") @Nullable String id,
@@ -81,10 +96,13 @@ public abstract class UserSummary {
                                      @JsonProperty("preferences") @Nullable Map<String, Object> preferences,
                                      @JsonProperty("timezone") @Nullable String timezone,
                                      @JsonProperty("session_timeout_ms") @Nullable Long sessionTimeoutMs,
-                                     @JsonProperty("readonly") boolean readOnly,
+                                     @JsonProperty("read_only") boolean readOnly,
                                      @JsonProperty("external") boolean external,
-                                     @JsonProperty("startpage") @Nullable Map<String, String> startpage,
-                                     @JsonProperty("roles") @Nullable Set<String> roles) {
+                                     @JsonProperty("startpage") @Nullable Startpage startpage,
+                                     @JsonProperty("roles") @Nullable Set<String> roles,
+                                     @JsonProperty("session_active") boolean sessionActive,
+                                     @JsonProperty("last_activity") @Nullable Date lastActivity,
+                                     @JsonProperty("client_address") @Nullable String clientAddress) {
         return new AutoValue_UserSummary(id,
                                          username,
                                          email,
@@ -96,6 +114,9 @@ public abstract class UserSummary {
                                          readOnly,
                                          external,
                                          startpage,
-                                         roles);
+                                         roles,
+                                         sessionActive,
+                                         lastActivity,
+                                         clientAddress);
     }
 }

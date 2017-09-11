@@ -18,23 +18,24 @@ package org.graylog2.security;
 
 import com.google.common.collect.ImmutableMap;
 import org.graylog2.plugin.security.PasswordAlgorithm;
-import org.graylog2.security.PasswordAlgorithmFactory;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import java.util.Collections;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
 public class PasswordAlgorithmFactoryTest {
+    @Rule
+    public final MockitoRule mockitoRule = MockitoJUnit.rule();
 
     @Mock
     private PasswordAlgorithm passwordAlgorithm1;
@@ -54,7 +55,6 @@ public class PasswordAlgorithmFactoryTest {
     @Test
     public void testForPasswordShouldReturnFirstAlgorithm() throws Exception {
         when(passwordAlgorithm1.supports(anyString())).thenReturn(true);
-        when(passwordAlgorithm2.supports(anyString())).thenReturn(false);
 
         final PasswordAlgorithmFactory passwordAlgorithmFactory = new PasswordAlgorithmFactory(passwordAlgorithms, passwordAlgorithm2);
 

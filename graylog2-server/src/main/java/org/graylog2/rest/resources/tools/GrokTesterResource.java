@@ -22,6 +22,7 @@ import oi.thekraken.grok.api.Grok;
 import oi.thekraken.grok.api.Match;
 import oi.thekraken.grok.api.exception.GrokException;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.grok.GrokPattern;
 import org.graylog2.grok.GrokPatternService;
 import org.graylog2.rest.models.tools.requests.GrokTestRequest;
@@ -59,28 +60,30 @@ public class GrokTesterResource extends RestResource {
     @GET
     @Timed
     public GrokTesterResponse grokTest(@QueryParam("pattern") @NotEmpty String pattern,
-                                       @QueryParam("string") @NotNull String string) throws GrokException {
+                                       @QueryParam("string") @NotNull String string,
+                                       @QueryParam("named_captures_only") @NotNull boolean namedCapturesOnly) throws GrokException {
 
-        return doTestGrok(string, pattern);
+        return doTestGrok(string, pattern, namedCapturesOnly);
     }
 
     @POST
     @Timed
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @NoAuditEvent("only used to test Grok patterns")
     public GrokTesterResponse testGrok(@Valid @NotNull GrokTestRequest grokTestRequest) throws GrokException {
-        return doTestGrok(grokTestRequest.string(), grokTestRequest.pattern());
+        return doTestGrok(grokTestRequest.string(), grokTestRequest.pattern(), grokTestRequest.namedCapturesOnly());
     }
 
-    private GrokTesterResponse doTestGrok(String string, String pattern) throws GrokException {
+    private GrokTesterResponse doTestGrok(String string, String pattern, boolean namedCapturesOnly) throws GrokException {
         final Set<GrokPattern> grokPatterns = grokPatternService.loadAll();
 
         final Grok grok = new Grok();
         for (GrokPattern grokPattern : grokPatterns) {
-            grok.addPattern(grokPattern.name, grokPattern.pattern);
+            grok.addPattern(grokPattern.name(), grokPattern.pattern());
         }
 
-        grok.compile(pattern);
+        grok.compile(pattern, namedCapturesOnly);
         final Match match = grok.match(string);
         match.captures();
         final Map<String, Object> matches = match.toMap();

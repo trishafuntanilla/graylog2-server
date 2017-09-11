@@ -1,8 +1,10 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
 import Immutable from 'immutable';
-import { Input } from 'react-bootstrap';
 import $ from 'jquery';
+import { Input } from 'components/bootstrap';
+// eslint-disable-next-line no-unused-vars
 import Typeahead from 'typeahead.js'; // Need to import this to load typeahead, even if the variable is never used
 
 import UniversalSearch from 'logic/search/UniversalSearch';
@@ -75,10 +77,10 @@ const TypeAheadFieldInput = React.createClass({
 
   render() {
     return (
-      <Input ref="fieldInput"
+      <Input ref="fieldInput" label={this.props.label}
              wrapperClassName="typeahead-wrapper"
              defaultValue={this.props.valueLink ? this.props.valueLink.value : null}
-        {...this._getFilteredProps()}/>
+        {...this._getFilteredProps()} />
     );
   },
 });

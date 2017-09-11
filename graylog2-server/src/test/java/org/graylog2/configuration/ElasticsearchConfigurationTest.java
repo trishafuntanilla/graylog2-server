@@ -20,14 +20,18 @@ import com.github.joschi.jadconfig.JadConfig;
 import com.github.joschi.jadconfig.RepositoryException;
 import com.github.joschi.jadconfig.ValidationException;
 import com.github.joschi.jadconfig.repositories.InMemoryRepository;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 public class ElasticsearchConfigurationTest {
     @Test
@@ -36,43 +40,5 @@ public class ElasticsearchConfigurationTest {
         new JadConfig(new InMemoryRepository(), configuration).process();
 
         assertEquals(configuration.getIndexPrefix(), "graylog");
-    }
-
-    @Test
-    public void testGetPathData() throws ValidationException, RepositoryException {
-        final ElasticsearchConfiguration configuration = new ElasticsearchConfiguration();
-        new JadConfig(new InMemoryRepository(), configuration).process();
-
-        assertEquals(configuration.getPathData(), "data/elasticsearch");
-    }
-
-    @Test
-    public void testGetPathHome() throws ValidationException, RepositoryException {
-        final ElasticsearchConfiguration configuration = new ElasticsearchConfiguration();
-        new JadConfig(new InMemoryRepository(), configuration).process();
-
-        assertEquals(configuration.getPathHome(), "data/elasticsearch");
-    }
-
-    @Test
-    public void testIsClientNode() throws ValidationException, RepositoryException {
-        final Map<String, String> props = new HashMap<>();
-        final ElasticsearchConfiguration configuration1 = new ElasticsearchConfiguration();
-
-        new JadConfig(new InMemoryRepository(), configuration1).process();
-
-        assertTrue(configuration1.isClientNode());
-
-        final ElasticsearchConfiguration configuration2 = new ElasticsearchConfiguration();
-        props.put("elasticsearch_node_data", "false");
-        new JadConfig(new InMemoryRepository(props), configuration2).process();
-
-        assertTrue(configuration2.isClientNode());
-
-        final ElasticsearchConfiguration configuration3 = new ElasticsearchConfiguration();
-        props.put("elasticsearch_node_data", "true");
-        new JadConfig(new InMemoryRepository(props), configuration3).process();
-
-        assertFalse(configuration3.isClientNode());
     }
 }

@@ -48,13 +48,32 @@ public class GELFMessage {
         return Type.determineType(payload[0], payload[1]);
     }
 
+    /**
+     * Return the JSON payload of the GELF message
+     *
+     * @return The extracted JSON payload of the GELF message.
+     * @deprecated Use {@link #getJSON(long)}.
+     */
+    @Deprecated
     public String getJSON() {
+        return getJSON(Long.MAX_VALUE);
+    }
+
+    /**
+     * Return the JSON payload of the GELF message.
+     *
+     * @param maxBytes The maximum number of bytes to read from a compressed GELF payload. {@code -1} means unlimited.
+     * @return The extracted JSON payload of the GELF message.
+     * @see Tools#decompressGzip(byte[], long)
+     * @see Tools#decompressZlib(byte[], long)
+     */
+    public String getJSON(long maxBytes) {
         try {
             switch (getGELFType()) {
                 case ZLIB:
-                    return Tools.decompressZlib(payload);
+                    return Tools.decompressZlib(payload, maxBytes);
                 case GZIP:
-                    return Tools.decompressGzip(payload);
+                    return Tools.decompressGzip(payload, maxBytes);
                 case UNCOMPRESSED:
                     return new String(payload, StandardCharsets.UTF_8);
                 case CHUNKED:
@@ -104,10 +123,12 @@ public class GELFMessage {
 
         private static final int HEADER_SIZE = 2;
 
-        private final byte[] bytes;
+        private final byte first;
+        private final byte second;
 
         Type(final byte first, final byte second) {
-            bytes = new byte[]{first, second};
+            this.first = first;
+            this.second = second;
         }
 
         static Type determineType(final byte first, final byte second) {
@@ -115,8 +136,8 @@ public class GELFMessage {
             if (first == ZLIB.first()) {
                 // zlib's second byte is for flags and a checksum -
                 // make sure it is positive.
-                int secondInt = ZLIB.second();
-                if (second < 0) {
+                int secondInt = second;
+                if (secondInt < 0) {
                     secondInt += 256;
                 }
                 // the second byte is not constant for zlib, it
@@ -148,11 +169,11 @@ public class GELFMessage {
         }
 
         public byte first() {
-            return bytes[0];
+            return first;
         }
 
         public byte second() {
-            return bytes[1];
+            return second;
         }
     }
 }

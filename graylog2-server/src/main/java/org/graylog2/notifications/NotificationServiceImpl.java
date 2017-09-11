@@ -20,6 +20,8 @@ import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import org.bson.types.ObjectId;
+import org.graylog2.audit.AuditActor;
+import org.graylog2.audit.AuditEventSender;
 import org.graylog2.cluster.Node;
 import org.graylog2.database.MongoConnection;
 import org.graylog2.database.PersistedServiceImpl;
@@ -30,20 +32,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.graylog2.audit.AuditEventTypes.SYSTEM_NOTIFICATION_CREATE;
+import static org.graylog2.audit.AuditEventTypes.SYSTEM_NOTIFICATION_DELETE;
 
 public class NotificationServiceImpl extends PersistedServiceImpl implements NotificationService {
     private static final Logger LOG = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     private final NodeId nodeId;
+    private final AuditEventSender auditEventSender;
 
     @Inject
-    public NotificationServiceImpl(NodeId nodeId, MongoConnection mongoConnection) {
+    public NotificationServiceImpl(NodeId nodeId, MongoConnection mongoConnection, AuditEventSender auditEventSender) {
         super(mongoConnection);
         this.nodeId = checkNotNull(nodeId);
+        this.auditEventSender = auditEventSender;
+        collection(NotificationImpl.class).createIndex(NotificationImpl.FIELD_TYPE);
     }
 
     @Override
@@ -67,28 +75,32 @@ public class NotificationServiceImpl extends PersistedServiceImpl implements Not
     @Override
     public boolean fixed(NotificationImpl.Type type, Node node) {
         BasicDBObject qry = new BasicDBObject();
-        qry.put("type", type.toString().toLowerCase(Locale.ENGLISH));
+        qry.put(NotificationImpl.FIELD_TYPE, type.toString().toLowerCase(Locale.ENGLISH));
         if (node != null) {
-            qry.put("node_id", node.getNodeId());
+            qry.put(NotificationImpl.FIELD_NODE_ID, node.getNodeId());
         }
 
-        return destroyAll(NotificationImpl.class, qry) > 0;
+        final boolean removed = destroyAll(NotificationImpl.class, qry) > 0;
+        if (removed) {
+            auditEventSender.success(AuditActor.system(nodeId), SYSTEM_NOTIFICATION_DELETE, Collections.singletonMap("notification_type", type.getDeclaringClass().getCanonicalName()));
+        }
+        return removed;
     }
 
     @Override
     public boolean isFirst(NotificationImpl.Type type) {
-        return (findOne(NotificationImpl.class, new BasicDBObject("type", type.toString().toLowerCase(Locale.ENGLISH))) == null);
+        return findOne(NotificationImpl.class, new BasicDBObject(NotificationImpl.FIELD_TYPE, type.toString().toLowerCase(Locale.ENGLISH))) == null;
     }
 
     @Override
     public List<Notification> all() {
-        final List<DBObject> dbObjects = query(NotificationImpl.class, new BasicDBObject(), new BasicDBObject("timestamp", -1));
+        final List<DBObject> dbObjects = query(NotificationImpl.class, new BasicDBObject(), new BasicDBObject(NotificationImpl.FIELD_TIMESTAMP, -1));
         final List<Notification> notifications = Lists.newArrayListWithCapacity(dbObjects.size());
         for (DBObject obj : dbObjects) {
             try {
                 notifications.add(new NotificationImpl(new ObjectId(obj.get("_id").toString()), obj.toMap()));
             } catch (IllegalArgumentException e) {
-                LOG.warn("There is a notification type we can't handle: [{}]", obj.get("type"));
+                LOG.warn("There is a notification type we can't handle: [{}]", obj.get(NotificationImpl.FIELD_TYPE));
             }
         }
 
@@ -113,9 +125,11 @@ public class NotificationServiceImpl extends PersistedServiceImpl implements Not
         }
         try {
             save(notification);
+            auditEventSender.success(AuditActor.system(nodeId), SYSTEM_NOTIFICATION_CREATE, notification.asMap());
         } catch(ValidationException e) {
             // We have no validations, but just in case somebody adds some...
             LOG.error("Validating user warning failed.", e);
+            auditEventSender.failure(AuditActor.system(nodeId), SYSTEM_NOTIFICATION_CREATE, notification.asMap());
             return false;
         }
 
@@ -129,6 +143,6 @@ public class NotificationServiceImpl extends PersistedServiceImpl implements Not
 
     @Override
     public int destroyAllByType(Notification.Type type) {
-        return destroyAll(NotificationImpl.class, new BasicDBObject("type", type.toString().toLowerCase(Locale.ENGLISH)));
+        return destroyAll(NotificationImpl.class, new BasicDBObject(NotificationImpl.FIELD_TYPE, type.toString().toLowerCase(Locale.ENGLISH)));
     }
 }

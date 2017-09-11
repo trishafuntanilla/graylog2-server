@@ -1,5 +1,6 @@
-import React, { PropTypes } from 'react';
-import { ButtonGroup, Button, Row, Col, DropdownButton, MenuItem } from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { ButtonGroup, Button, Row, Col, DropdownButton, MenuItem, Label } from 'react-bootstrap';
 import Immutable from 'immutable';
 import { LinkContainer } from 'react-router-bootstrap';
 
@@ -11,7 +12,6 @@ import MessageFields from 'components/search/MessageFields';
 import { Spinner, ClipboardButton, Timestamp } from 'components/common';
 import SurroundingSearchButton from 'components/search/SurroundingSearchButton';
 
-import ApiRoutes from 'routing/ApiRoutes';
 import Routes from 'routing/Routes';
 
 const MessageDetail = React.createClass({
@@ -30,12 +30,14 @@ const MessageDetail = React.createClass({
     streams: PropTypes.object,
     customFieldActions: PropTypes.node,
     searchConfig: PropTypes.object,
+    disableMessageActions: PropTypes.bool,
   },
 
   getInitialState() {
     return {
       allStreamsLoaded: false,
       allStreams: Immutable.List(),
+      showOriginal: false,
     };
   },
   componentDidMount() {
@@ -47,7 +49,7 @@ const MessageDetail = React.createClass({
         return;
       }
       const promise = StreamsStore.listStreams();
-      promise.done((streams) => this._onStreamsLoaded(streams));
+      promise.done(streams => this._onStreamsLoaded(streams));
     }
   },
   _onStreamsLoaded(streams) {
@@ -63,7 +65,7 @@ const MessageDetail = React.createClass({
     let nodeInformation;
 
     if (node) {
-      const nodeURL = ApiRoutes.NodesController.node(nodeId).url;
+      const nodeURL = Routes.node(nodeId);
       nodeInformation = (
         <a href={nodeURL}>
           <i className="fa fa-code-fork" />
@@ -81,9 +83,82 @@ const MessageDetail = React.createClass({
   _getAllStreams() {
     if (this.props.allStreams) {
       return this.props.allStreams;
-    } else {
-      return this.state.allStreams;
     }
+    return this.state.allStreams;
+  },
+
+  _getTestAgainstStreamButton() {
+    if (this.props.disableTestAgainstStream) {
+      return null;
+    }
+
+    let streamList = null;
+    this._getAllStreams().forEach((stream) => {
+      if (!streamList) {
+        streamList = [];
+      }
+      if (stream.is_default) {
+        streamList.push(
+          <MenuItem key={stream.id} disabled title="Cannot test against the default stream">{stream.title}</MenuItem>,
+        );
+      } else {
+        streamList.push(
+          <LinkContainer key={stream.id}
+                         to={Routes.stream_edit_example(stream.id, this.props.message.index,
+                                                        this.props.message.id)}>
+            <MenuItem>{stream.title}</MenuItem>
+          </LinkContainer>,
+        );
+      }
+    });
+
+    return (
+      <DropdownButton ref="streamDropdown" pullRight bsSize="small" title="Test against stream"
+                      id="select-stream-dropdown">
+        { streamList }
+        { (!streamList && !this.props.allStreamsLoaded) && <MenuItem header><i className="fa fa-spin fa-spinner" />
+          Loading streams</MenuItem> }
+        { (!streamList && this.props.allStreamsLoaded) && <MenuItem header>No streams available</MenuItem> }
+      </DropdownButton>
+    );
+  },
+
+  _formatMessageActions() {
+    if (this.props.disableMessageActions) {
+      return <ButtonGroup className="pull-right" bsSize="small" />;
+    }
+
+    const messageUrl = this.props.message.index ? Routes.message_show(this.props.message.index, this.props.message.id) : '#';
+
+    let surroundingSearchButton;
+    if (!this.props.disableSurroundingSearch) {
+      surroundingSearchButton = (
+        <SurroundingSearchButton id={this.props.message.id}
+                                 timestamp={this.props.message.timestamp}
+                                 searchConfig={this.props.searchConfig}
+                                 messageFields={this.props.message.fields} />
+      );
+    }
+
+    let showChanges = null;
+    if (this.props.message.decoration_stats) {
+      showChanges = <Button onClick={this._toggleShowOriginal} active={this.state.showOriginal}>Show changes</Button>;
+    }
+
+    return (
+      <ButtonGroup className="pull-right" bsSize="small">
+        {showChanges}
+        <Button href={messageUrl}>Permalink</Button>
+
+        <ClipboardButton title="Copy ID" text={this.props.message.id} />
+        {surroundingSearchButton}
+        {this._getTestAgainstStreamButton()}
+      </ButtonGroup>
+    );
+  },
+
+  _toggleShowOriginal() {
+    this.setState({ showOriginal: !this.state.showOriginal });
   },
 
   render() {
@@ -97,21 +172,6 @@ const MessageDetail = React.createClass({
         </Row>
       );
     }
-
-    const messageUrl = ApiRoutes.SearchController.showMessage(this.props.message.index, this.props.message.id).url;
-
-    let streamList = null;
-    this._getAllStreams().forEach((stream) => {
-      if (!streamList) {
-        streamList = [];
-      }
-      streamList.push(
-        <LinkContainer key={stream.id}
-                       to={Routes.stream_edit_example(stream.id, this.props.message.index, this.props.message.id)}>
-          <MenuItem>{stream.title}</MenuItem>
-        </LinkContainer>
-      );
-    });
 
     const streamIds = Immutable.Set(this.props.message.stream_ids);
     const streams = streamIds.map((id) => {
@@ -159,42 +219,25 @@ const MessageDetail = React.createClass({
       receivedBy = null;
     }
 
-    const testAgainstStream = (this.props.disableTestAgainstStream ? null :
-      <DropdownButton ref="streamDropdown" pullRight bsSize="small" title="Test against stream"
-                      id="select-stream-dropdown">
-        { streamList }
-        { (!streamList && !this.props.allStreamsLoaded) && <MenuItem header><i className="fa fa-spin fa-spinner" />
-          Loading streams</MenuItem> }
-        { (!streamList && this.props.allStreamsLoaded) && <MenuItem header>No streams available</MenuItem> }
-      </DropdownButton>);
-
-    let surroundingSearchButton;
-    if (!this.props.disableSurroundingSearch) {
-      surroundingSearchButton = (
-        <SurroundingSearchButton id={this.props.message.id}
-                                 timestamp={this.props.message.timestamp}
-                                 searchConfig={this.props.searchConfig}
-                                 messageFields={this.props.message.fields} />
+    let messageTitle;
+    if (this.props.message.index) {
+      messageTitle = (
+        <LinkContainer to={Routes.message_show(this.props.message.index, this.props.message.id)}>
+          <a href="#">{this.props.message.id}</a>
+        </LinkContainer>
       );
+    } else {
+      messageTitle = <span>{this.props.message.id} <Label bsStyle="warning">Not stored</Label></span>;
     }
 
     return (<div>
-
       <Row className="row-sm">
         <Col md={12}>
-          <ButtonGroup className="pull-right" bsSize="small">
-            <Button href={messageUrl}>Permalink</Button>
-
-            <ClipboardButton title="Copy ID" text={this.props.message.id} />
-            {surroundingSearchButton}
-            {testAgainstStream}
-          </ButtonGroup>
-          <h3>
+          {this._formatMessageActions()}
+          <h3 className="message-details-title">
             <i className="fa fa-envelope" />
             &nbsp;
-            <LinkContainer to={Routes.message_show(this.props.message.index, this.props.message.id)}>
-              <a href="#" style={{ color: '#000' }}>{this.props.message.id}</a>
-            </LinkContainer>
+            {messageTitle}
           </h3>
         </Col>
       </Row>
@@ -205,7 +248,7 @@ const MessageDetail = React.createClass({
             {receivedBy}
 
             <dt>Stored in index</dt>
-            <dd>{this.props.message.index}</dd>
+            <dd>{this.props.message.index ? this.props.message.index : 'Message is not stored'}</dd>
 
             { streamIds.size > 0 && <dt>Routed into streams</dt> }
             { streamIds.size > 0 &&
@@ -219,9 +262,12 @@ const MessageDetail = React.createClass({
         </Col>
         <Col md={9}>
           <div ref="messageList">
-            <MessageFields message={this.props.message} possiblyHighlight={this.props.possiblyHighlight}
+            <MessageFields message={this.props.message}
+                           possiblyHighlight={this.props.possiblyHighlight}
                            disableFieldActions={this.props.disableFieldActions}
-                           customFieldActions={this.props.customFieldActions} />
+                           customFieldActions={this.props.customFieldActions}
+                           showDecoration={this.state.showOriginal}
+            />
           </div>
         </Col>
       </Row>

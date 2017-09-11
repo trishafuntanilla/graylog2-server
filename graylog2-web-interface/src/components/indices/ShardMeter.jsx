@@ -1,17 +1,18 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import numeral from 'numeral';
 import moment from 'moment';
 
 const ShardMeter = React.createClass({
   propTypes: {
-    title: React.PropTypes.string.isRequired,
-    shardMeter: React.PropTypes.object.isRequired,
+    title: PropTypes.string.isRequired,
+    shardMeter: PropTypes.object.isRequired,
   },
   _formatMeter(meter) {
     const value = <span>{numeral(meter.total).format('0,0')} ops</span>;
 
     if (meter.total > 0) {
-      return <span>{value} <span title={meter.time_seconds + 's'}>(took {moment.duration(meter.time_seconds, 'seconds').humanize()})</span></span>;
+      return <span>{value} <span title={`${meter.time_seconds}s`}>(took {moment.duration(meter.time_seconds, 'seconds').humanize()})</span></span>;
     }
 
     return value;
@@ -20,7 +21,7 @@ const ShardMeter = React.createClass({
     const sm = this.props.shardMeter;
     return (
       <span>
-        <h3 style={{display: 'inline'}}>{this.props.title}</h3>
+        <h3 style={{ display: 'inline' }}>{this.props.title}</h3>
         <dl>
           <dt>Index:</dt>
           <dd>{this._formatMeter(sm.index)}</dd>

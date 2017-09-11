@@ -17,16 +17,23 @@
 package org.graylog2.plugin.configuration;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.graylog2.plugin.configuration.fields.*;
+import org.graylog2.plugin.configuration.fields.BooleanField;
+import org.graylog2.plugin.configuration.fields.ConfigurationField;
+import org.graylog2.plugin.configuration.fields.DropdownField;
+import org.graylog2.plugin.configuration.fields.NumberField;
+import org.graylog2.plugin.configuration.fields.TextField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 import java.util.Map;
 
 public class ConfigurationRequest {
     private static final Logger log = LoggerFactory.getLogger(ConfigurationRequest.class);
+    private static final String WILDCARD_IP_ADDRESS = "0.0.0.0";
 
     private final Map<String, ConfigurationField> fields = Maps.newLinkedHashMap();
 
@@ -40,6 +47,10 @@ public class ConfigurationRequest {
         fields.put(f.getName(), f);
     }
 
+    public void addFields(List<ConfigurationField> fields) {
+        fields.forEach(this::addField);
+    }
+
     public boolean containsField(String fieldName) {
         return fields.containsKey(fieldName);
     }
@@ -48,11 +59,20 @@ public class ConfigurationRequest {
         return fields.get(fieldName);
     }
 
+    public Map<String, ConfigurationField> getFields() {
+        return fields;
+    }
+
+    @Deprecated
     public boolean removeField(String fieldName) {
         return fields.remove(fieldName) != null;
     }
-    public Map<String, ConfigurationField> getFields() {
-        return fields;
+
+    public static ConfigurationRequest createWithFields(ConfigurationField... fields) {
+        final ConfigurationRequest configurationRequest = new ConfigurationRequest();
+        configurationRequest.addFields(Lists.newArrayList(fields));
+
+        return configurationRequest;
     }
 
     @JsonValue
@@ -83,18 +103,18 @@ public class ConfigurationRequest {
                 switch (type) {
                     case BooleanField.FIELD_TYPE:
                         if (!configuration.booleanIsSet(field.getName())) {
-                            throw new ConfigurationException("Mandatory configuration field " + field.getName() + " is missing");
+                            throw new ConfigurationException("Mandatory configuration field " + field.getName() + " is missing or has the wrong data type");
                         }
                         break;
                     case NumberField.FIELD_TYPE:
                         if (!configuration.intIsSet(field.getName())) {
-                            throw new ConfigurationException("Mandatory configuration field " + field.getName() + " is missing");
+                            throw new ConfigurationException("Mandatory configuration field " + field.getName() + " is missing or has the wrong data type");
                         }
                         break;
                     case TextField.FIELD_TYPE:
                     case DropdownField.FIELD_TYPE:
                         if (!configuration.stringIsSet(field.getName())) {
-                                throw new ConfigurationException("Mandatory configuration field " + field.getName() + " is missing");
+                                throw new ConfigurationException("Mandatory configuration field " + field.getName() + " is missing or has the wrong data type");
                         }
                         break;
                     default:
@@ -147,7 +167,7 @@ public class ConfigurationRequest {
             return new TextField(
                     name,
                     "Bind address",
-                    "0.0.0.0",
+                    WILDCARD_IP_ADDRESS,
                     "Address to listen on. For example 0.0.0.0 or 127.0.0.1."
             );
         }

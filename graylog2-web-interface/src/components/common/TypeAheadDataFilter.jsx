@@ -1,20 +1,21 @@
+import PropTypes from 'prop-types';
 import React from 'react';
-import { ButtonInput } from 'react-bootstrap';
+import { Button } from 'react-bootstrap';
 import Immutable from 'immutable';
 
 import { TypeAheadInput } from 'components/common';
 
 const TypeAheadDataFilter = React.createClass({
   propTypes: {
-    data: React.PropTypes.array,
-    displayKey: React.PropTypes.string,
-    filterBy: React.PropTypes.string,
-    filterData: React.PropTypes.func,
-    filterSuggestionAccessor: React.PropTypes.string,
-    filterSuggestions: React.PropTypes.array,
-    label: React.PropTypes.string,
-    onDataFiltered: React.PropTypes.func,
-    searchInKeys: React.PropTypes.array,
+    data: PropTypes.array,
+    displayKey: PropTypes.string,
+    filterBy: PropTypes.string,
+    filterData: PropTypes.func,
+    filterSuggestionAccessor: PropTypes.string,
+    filterSuggestions: PropTypes.array,
+    label: PropTypes.string,
+    onDataFiltered: PropTypes.func,
+    searchInKeys: PropTypes.array,
   },
   getInitialState() {
     return {
@@ -25,7 +26,7 @@ const TypeAheadDataFilter = React.createClass({
   },
   _onSearchTextChanged(event) {
     event.preventDefault();
-    this.setState({filterText: this.refs.typeAheadInput.getValue()}, this.filterData);
+    this.setState({ filterText: this.refs.typeAheadInput.getValue() }, this.filterData);
   },
   _onFilterAdded(event, suggestion) {
     this.setState({
@@ -36,14 +37,14 @@ const TypeAheadDataFilter = React.createClass({
   },
   _onFilterRemoved(event) {
     event.preventDefault();
-    this.setState({filters: this.state.filters.delete(event.target.getAttribute('data-target'))}, this.filterData);
+    this.setState({ filters: this.state.filters.delete(event.target.getAttribute('data-target')) }, this.filterData);
   },
   _matchFilters(datum) {
     return this.state.filters.every((filter) => {
       let dataToFilter = datum[this.state.filterByKey];
 
       if (this.props.filterSuggestionAccessor) {
-        dataToFilter = dataToFilter.map((data) => data[this.props.filterSuggestionAccessor].toLocaleLowerCase());
+        dataToFilter = dataToFilter.map(data => data[this.props.filterSuggestionAccessor].toLocaleLowerCase());
       } else {
         dataToFilter = dataToFilter.map(data => data.toLocaleLowerCase());
       }
@@ -67,14 +68,14 @@ const TypeAheadDataFilter = React.createClass({
       };
 
       if (typeof key === 'object') {
-        return key.some((arrayEntry) => containsFilter(arrayEntry, value));
+        return key.some(arrayEntry => containsFilter(arrayEntry, value));
       }
       return containsFilter(key, value);
     }, this);
   },
   _resetFilters() {
     this.refs.typeAheadInput.clear();
-    this.setState({filterText: '', filters: Immutable.OrderedSet()}, this.filterData);
+    this.setState({ filterText: '', filters: Immutable.OrderedSet() }, this.filterData);
   },
   filterData() {
     if (typeof this.props.filterData === 'function') {
@@ -91,10 +92,10 @@ const TypeAheadDataFilter = React.createClass({
     const filters = this.state.filters.map((filter) => {
       return (
         <li key={`li-${filter}`}>
-                    <span className="pill label label-default">
-                        {this.props.filterBy}: {filter}
-                      <a className="tag-remove" data-target={filter} onClick={this._onFilterRemoved}/>
-                    </span>
+          <span className="pill label label-default">
+            {this.props.filterBy}: {filter}
+            <a className="tag-remove" data-target={filter} onClick={this._onFilterRemoved} />
+          </span>
         </li>
       );
     });
@@ -102,25 +103,27 @@ const TypeAheadDataFilter = React.createClass({
     let suggestions;
 
     if (this.props.filterSuggestionAccessor) {
-      suggestions = this.props.filterSuggestions.map((filterSuggestion) => filterSuggestion[this.props.filterSuggestionAccessor].toLocaleLowerCase());
+      suggestions = this.props.filterSuggestions.map(filterSuggestion => filterSuggestion[this.props.filterSuggestionAccessor].toLocaleLowerCase());
     } else {
-      suggestions = this.props.filterSuggestions.map((filterSuggestion) => filterSuggestion.toLocaleLowerCase());
+      suggestions = this.props.filterSuggestions.map(filterSuggestion => filterSuggestion.toLocaleLowerCase());
     }
 
-    suggestions.filter((filterSuggestion) => !this.state.filters.includes(filterSuggestion));
+    suggestions.filter(filterSuggestion => !this.state.filters.includes(filterSuggestion));
 
     return (
       <div className="filter">
-        <form className="form-inline" onSubmit={this._onSearchTextChanged} style={{display: 'inline'}}>
+        <form className="form-inline" onSubmit={this._onSearchTextChanged} style={{ display: 'inline' }}>
           <TypeAheadInput ref="typeAheadInput"
                           onSuggestionSelected={this._onFilterAdded}
                           suggestionText={`Filter by ${this.props.filterBy}: `}
                           suggestions={suggestions}
                           label={this.props.label}
-                          displayKey={this.props.displayKey}/>
-          <ButtonInput type="submit" value="Filter" style={{marginLeft: 5}}/>
-          <ButtonInput type="button" value="Reset" style={{marginLeft: 5}} onClick={this._resetFilters}
-                       disabled={this.state.filters.count() === 0 && this.state.filterText === ''}/>
+                          displayKey={this.props.displayKey} />
+          <Button type="submit" style={{ marginLeft: 5 }}>Filter</Button>
+          <Button type="button" style={{ marginLeft: 5 }} onClick={this._resetFilters}
+                  disabled={this.state.filters.count() === 0 && this.state.filterText === ''}>
+            Reset
+          </Button>
         </form>
         <ul className="pill-list">
           {filters}

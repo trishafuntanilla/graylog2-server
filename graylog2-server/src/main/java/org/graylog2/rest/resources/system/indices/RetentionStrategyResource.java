@@ -18,20 +18,17 @@ package org.graylog2.rest.resources.system.indices;
 
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.module.jsonSchema.factories.SchemaFactoryWrapper;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
-import org.graylog2.indexer.management.IndexManagementConfig;
-import org.graylog2.indexer.retention.strategies.NoopRetentionStrategy;
-import org.graylog2.indexer.retention.strategies.NoopRetentionStrategyConfig;
 import org.graylog2.plugin.cluster.ClusterConfigService;
 import org.graylog2.plugin.indexer.retention.RetentionStrategy;
 import org.graylog2.plugin.indexer.retention.RetentionStrategyConfig;
 import org.graylog2.rest.models.system.indices.RetentionStrategies;
 import org.graylog2.rest.models.system.indices.RetentionStrategyDescription;
-import org.graylog2.rest.models.system.indices.RetentionStrategySummary;
 import org.graylog2.shared.rest.resources.RestResource;
 import org.hibernate.validator.constraints.NotEmpty;
 import org.slf4j.Logger;
@@ -39,13 +36,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
-import javax.validation.Valid;
-import javax.validation.constraints.NotNull;
-import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.InternalServerErrorException;
 import javax.ws.rs.NotFoundException;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -64,68 +57,16 @@ public class RetentionStrategyResource extends RestResource {
     private static final Logger LOG = LoggerFactory.getLogger(RetentionStrategyResource.class);
 
     private final Map<String, Provider<RetentionStrategy>> retentionStrategies;
+    private final ObjectMapper objectMapper;
     private final ClusterConfigService clusterConfigService;
 
     @Inject
     public RetentionStrategyResource(Map<String, Provider<RetentionStrategy>> retentionStrategies,
+                                     ObjectMapper objectMapper,
                                      ClusterConfigService clusterConfigService) {
         this.retentionStrategies = requireNonNull(retentionStrategies);
+        this.objectMapper = objectMapper;
         this.clusterConfigService = requireNonNull(clusterConfigService);
-    }
-
-    @GET
-    @Path("config")
-    @Timed
-    @ApiOperation(value = "Configuration of the current retention strategy",
-            notes = "This resource returns the configuration of the currently used retention strategy.")
-    public RetentionStrategySummary config() {
-        final IndexManagementConfig indexManagementConfig = clusterConfigService.get(IndexManagementConfig.class);
-        if (indexManagementConfig == null) {
-            throw new InternalServerErrorException("Couldn't retrieve index management configuration");
-        }
-
-        final String strategyName = indexManagementConfig.retentionStrategy();
-        final Provider<RetentionStrategy> provider = retentionStrategies.get(strategyName);
-        if (provider == null) {
-            LOG.error("Couldn't retrieve retention strategy provider for {}. Returning no-op strategy config.", strategyName);
-            return RetentionStrategySummary.create(NoopRetentionStrategy.class.getCanonicalName(),
-                    NoopRetentionStrategyConfig.createDefault());
-        }
-
-        final RetentionStrategy retentionStrategy = provider.get();
-        @SuppressWarnings("unchecked")
-        final Class<RetentionStrategyConfig> configClass = (Class<RetentionStrategyConfig>) retentionStrategy.configurationClass();
-        final RetentionStrategyConfig config = clusterConfigService.get(configClass);
-
-        return RetentionStrategySummary.create(strategyName, config);
-    }
-
-    @PUT
-    @Path("config")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Timed
-    @ApiOperation(value = "Configuration of the current retention strategy",
-            notes = "This resource stores the configuration of the currently used retention strategy.")
-    public RetentionStrategySummary config(@ApiParam(value = "The description of the retention strategy and its configuration", required = true)
-                       @Valid @NotNull RetentionStrategySummary retentionStrategySummary) {
-        if (!retentionStrategies.containsKey(retentionStrategySummary.strategy())) {
-            throw new NotFoundException("Couldn't find retention strategy for given type " + retentionStrategySummary.strategy());
-        }
-
-        final IndexManagementConfig oldConfig = clusterConfigService.get(IndexManagementConfig.class);
-        if (oldConfig == null) {
-            throw new InternalServerErrorException("Couldn't retrieve index management configuration");
-        }
-
-        final IndexManagementConfig indexManagementConfig = IndexManagementConfig.create(
-                oldConfig.rotationStrategy(),
-                retentionStrategySummary.strategy()
-        );
-
-        clusterConfigService.write(retentionStrategySummary.config());
-        clusterConfigService.write(indexManagementConfig);
-
-        return retentionStrategySummary;
     }
 
     @GET

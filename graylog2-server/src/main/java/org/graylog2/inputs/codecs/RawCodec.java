@@ -14,30 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with Graylog.  If not, see <http://www.gnu.org/licenses/>.
  */
-/**
- *
- * This file is part of Graylog.
- *
- * Graylog is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * Graylog is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Graylog.  If not, see <http://www.gnu.org/licenses/>.
- */
 package org.graylog2.inputs.codecs;
 
-import com.google.common.base.Charsets;
 import com.google.inject.assistedinject.Assisted;
 import com.google.inject.assistedinject.AssistedInject;
 import org.graylog2.plugin.Message;
-import org.graylog2.plugin.ResolvableInetSocketAddress;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.configuration.ConfigurationRequest;
 import org.graylog2.plugin.inputs.annotations.Codec;
@@ -50,7 +31,8 @@ import org.graylog2.plugin.journal.RawMessage;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.InetAddress;
+import javax.inject.Inject;
+import java.nio.charset.StandardCharsets;
 
 @Codec(name = "raw", displayName = "Raw String")
 public class RawCodec extends AbstractCodec {
@@ -63,9 +45,7 @@ public class RawCodec extends AbstractCodec {
     @Nullable
     @Override
     public Message decode(@Nonnull RawMessage raw) {
-        final ResolvableInetSocketAddress rawRemoteAddress = raw.getRemoteAddress();
-        final InetAddress remoteAddress = rawRemoteAddress == null ? null : rawRemoteAddress.getAddress();
-        return new Message(new String(raw.getPayload(), Charsets.UTF_8), null, raw.getTimestamp());
+        return new Message(new String(raw.getPayload(), StandardCharsets.UTF_8), null, raw.getTimestamp());
     }
 
     @Nullable
@@ -81,6 +61,9 @@ public class RawCodec extends AbstractCodec {
 
         @Override
         Config getConfig();
+
+        @Override
+        Descriptor getDescriptor();
     }
 
     @ConfigClass
@@ -93,4 +76,10 @@ public class RawCodec extends AbstractCodec {
         }
     }
 
+    public static class Descriptor extends AbstractCodec.Descriptor {
+        @Inject
+        public Descriptor() {
+            super(RawCodec.class.getAnnotation(Codec.class).displayName());
+        }
+    }
 }

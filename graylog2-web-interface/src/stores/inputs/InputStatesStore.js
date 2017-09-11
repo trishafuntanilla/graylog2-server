@@ -13,7 +13,7 @@ const InputStatesStore = Reflux.createStore({
   },
 
   getInitialState() {
-    return {inputStates: this.inputStates};
+    return { inputStates: this.inputStates };
   },
 
   list() {
@@ -33,7 +33,7 @@ const InputStatesStore = Reflux.createStore({
           });
         });
         this.inputStates = result;
-        this.trigger({inputStates: this.inputStates});
+        this.trigger({ inputStates: this.inputStates });
 
         return result;
       });
@@ -41,7 +41,7 @@ const InputStatesStore = Reflux.createStore({
 
   _checkInputStateChangeResponse(input, response, action) {
     const nodes = Object.keys(response).filter(node => input.global ? true : node === input.node);
-    const failedNodes = nodes.filter((nodeId) => response[nodeId] === null);
+    const failedNodes = nodes.filter(nodeId => response[nodeId] === null);
 
     if (failedNodes.length === 0) {
       UserNotification.success(`Request to ${action.toLowerCase()} input '${input.title}' was sent successfully.`,
@@ -62,8 +62,9 @@ const InputStatesStore = Reflux.createStore({
         (response) => {
           this._checkInputStateChangeResponse(input, response, 'START');
           this.list();
+          return response;
         },
-        error => {
+        (error) => {
           UserNotification.error(`Error starting input '${input.title}': ${error}`, `Input '${input.title}' could not be started`);
         });
   },
@@ -75,8 +76,9 @@ const InputStatesStore = Reflux.createStore({
         (response) => {
           this._checkInputStateChangeResponse(input, response, 'STOP');
           this.list();
+          return response;
         },
-        error => {
+        (error) => {
           UserNotification.error(`Error stopping input '${input.title}': ${error}`, `Input '${input.title}' could not be stopped`);
         });
   },

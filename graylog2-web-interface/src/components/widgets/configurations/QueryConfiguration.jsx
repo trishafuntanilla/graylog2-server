@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react';
-import { Input } from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Input } from 'components/bootstrap';
 
 const QueryConfiguration = React.createClass({
   propTypes: {
@@ -15,7 +16,7 @@ const QueryConfiguration = React.createClass({
              label="Search query"
              defaultValue={this.props.config.query}
              onChange={this.props.onChange}
-             help="Search query that will be executed to get the widget value."/>
+             help="Search query that will be executed to get the widget value." />
     );
   },
 });

@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import { ButtonGroup, DropdownButton, MenuItem } from 'react-bootstrap';
 import Immutable from 'immutable';
 
@@ -47,10 +48,9 @@ const AddToDashboardMenu = React.createClass({
 
   componentDidMount() {
     this._initializeDashboards();
-    this._setOriginalSearchParams();
   },
   _initializeDashboards() {
-    DashboardsStore.addOnWritableDashboardsChangedCallback(dashboards => {
+    DashboardsStore.addOnWritableDashboardsChangedCallback((dashboards) => {
       if (this.isMounted()) {
         this._updateDashboards(dashboards);
       }
@@ -66,25 +66,22 @@ const AddToDashboardMenu = React.createClass({
     this._updateDashboards(dashboards);
   },
   _updateDashboards(newDashboards) {
-    this.setState({dashboards: newDashboards});
+    this.setState({ dashboards: newDashboards });
   },
-  _setOriginalSearchParams() {
-    this.searchParams = SearchStore.getOriginalSearchParams();
-  },
-  _selectDashboard(event, dashboardId) {
-    this.setState({selectedDashboard: dashboardId});
+  _selectDashboard(dashboardId) {
+    this.setState({ selectedDashboard: dashboardId });
     this.refs.widgetModal.open();
   },
   _saveWidget(title, configuration) {
     let widgetConfig = Immutable.Map(this.props.configuration);
-    let searchParams = Immutable.Map(this.searchParams);
+    let searchParams = Immutable.Map(SearchStore.getOriginalSearchParams());
     if (searchParams.has('range_type')) {
       switch (searchParams.get('range_type')) {
         case 'relative':
           const relativeTimeRange = Immutable.Map({
             // Changes the "relative" key used to store relative time-range to "range"
-            'range': searchParams.get('relative'),
-            'type': 'relative',
+            range: searchParams.get('relative'),
+            type: 'relative',
           });
           searchParams = searchParams
             .set('timerange', relativeTimeRange)
@@ -95,9 +92,9 @@ const AddToDashboardMenu = React.createClass({
           const from = searchParams.get('from');
           const to = searchParams.get('to');
           const absoluteTimeRange = Immutable.Map({
-            'type': 'absolute',
-            'from': from,
-            'to': to,
+            type: 'absolute',
+            from: from,
+            to: to,
           });
           searchParams = searchParams
             .set('timerange', absoluteTimeRange)
@@ -107,8 +104,8 @@ const AddToDashboardMenu = React.createClass({
           break;
         case 'keyword':
           const keywordTimeRange = Immutable.Map({
-            'type': 'keyword',
-            'keyword': searchParams.get('keyword'),
+            type: 'keyword',
+            keyword: searchParams.get('keyword'),
           });
           searchParams = searchParams
             .set('timerange', keywordTimeRange)
@@ -148,7 +145,7 @@ const AddToDashboardMenu = React.createClass({
         dashboards = dashboards.push(
           <MenuItem eventKey={id} key={dashboard.id}>
             {dashboard.title}
-          </MenuItem>
+          </MenuItem>,
         );
       });
 
@@ -173,7 +170,7 @@ const AddToDashboardMenu = React.createClass({
     }
 
     return (
-      <div style={{display: 'inline'}}>
+      <div style={{ display: 'inline' }}>
         <DropdownButton bsStyle={this.props.bsStyle}
                         bsSize="small"
                         title={this.props.title}
@@ -182,7 +179,7 @@ const AddToDashboardMenu = React.createClass({
                         id="no-dashboards-available-dropdown">
           {option}
         </DropdownButton>
-        <EditDashboardModal ref="createDashboardModal" onSaved={(id) => this._selectDashboard(undefined, id)}/>
+        <EditDashboardModal ref="createDashboardModal" onSaved={this._selectDashboard} />
       </div>
     );
   },
@@ -195,7 +192,7 @@ const AddToDashboardMenu = React.createClass({
     }
 
     return (
-      <div style={{display: 'inline-block'}}>
+      <div style={{ display: 'inline-block' }}>
         <ButtonGroup>
           {this.props.children}
           {dropdownMenu}
@@ -203,7 +200,7 @@ const AddToDashboardMenu = React.createClass({
         <WidgetCreationModal ref="widgetModal"
                              widgetType={this.props.widgetType}
                              onConfigurationSaved={this._saveWidget}
-                             fields={this.props.fields}/>
+                             fields={this.props.fields} />
       </div>
     );
   },

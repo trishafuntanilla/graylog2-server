@@ -23,8 +23,18 @@ import com.google.inject.TypeLiteral;
 import com.google.inject.assistedinject.FactoryModuleBuilder;
 import com.google.inject.multibindings.MapBinder;
 import com.google.inject.multibindings.Multibinder;
+import com.google.inject.multibindings.OptionalBinder;
 import com.google.inject.name.Names;
+
+import org.apache.shiro.realm.AuthenticatingRealm;
+import org.graylog2.audit.AuditEventSender;
+import org.graylog2.audit.AuditEventType;
+import org.graylog2.audit.PluginAuditEventTypes;
+import org.graylog2.audit.formatter.AuditEventFormatter;
+import org.graylog2.migrations.Migration;
+import org.graylog2.plugin.alarms.AlertCondition;
 import org.graylog2.plugin.dashboards.widgets.WidgetStrategy;
+import org.graylog2.plugin.decorators.SearchResponseDecorator;
 import org.graylog2.plugin.indexer.retention.RetentionStrategy;
 import org.graylog2.plugin.indexer.rotation.RotationStrategy;
 import org.graylog2.plugin.inputs.MessageInput;
@@ -32,18 +42,23 @@ import org.graylog2.plugin.inputs.annotations.ConfigClass;
 import org.graylog2.plugin.inputs.annotations.FactoryClass;
 import org.graylog2.plugin.inputs.codecs.Codec;
 import org.graylog2.plugin.inputs.transports.Transport;
+import org.graylog2.plugin.lookup.LookupCache;
+import org.graylog2.plugin.lookup.LookupCacheConfiguration;
+import org.graylog2.plugin.lookup.LookupDataAdapter;
+import org.graylog2.plugin.lookup.LookupDataAdapterConfiguration;
 import org.graylog2.plugin.outputs.MessageOutput;
 import org.graylog2.plugin.security.PasswordAlgorithm;
 import org.graylog2.plugin.security.PluginPermissions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.annotation.Annotation;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.container.DynamicFeature;
 import javax.ws.rs.ext.ExceptionMapper;
-import java.lang.annotation.Annotation;
 
 public abstract class Graylog2Module extends AbstractModule {
     private static final Logger LOG = LoggerFactory.getLogger(Graylog2Module.class);
@@ -252,7 +267,8 @@ public abstract class Graylog2Module extends AbstractModule {
     }
 
     protected MapBinder<String, WidgetStrategy.Factory<? extends WidgetStrategy>> widgetStrategyBinder() {
-        return MapBinder.newMapBinder(binder(), TypeLiteral.get(String.class), new TypeLiteral<WidgetStrategy.Factory<? extends WidgetStrategy>>(){});
+        return MapBinder.newMapBinder(binder(), TypeLiteral.get(String.class), new TypeLiteral<WidgetStrategy.Factory<? extends WidgetStrategy>>() {
+        });
     }
 
     protected void installWidgetStrategy(MapBinder<String, WidgetStrategy.Factory<? extends WidgetStrategy>> widgetStrategyBinder,
@@ -278,6 +294,30 @@ public abstract class Graylog2Module extends AbstractModule {
                                       Class<? extends PluginPermissions> permissionsClass) {
         classMultibinder.addBinding().to(permissionsClass);
     }
+
+    protected Multibinder<PluginAuditEventTypes> auditEventTypesBinder() {
+        return Multibinder.newSetBinder(binder(), PluginAuditEventTypes.class);
+    }
+
+    protected void installAuditEventTypes(Multibinder<PluginAuditEventTypes> classMultibinder,
+                                          Class<? extends PluginAuditEventTypes> auditEventTypesClass) {
+        classMultibinder.addBinding().to(auditEventTypesClass);
+    }
+
+    protected MapBinder<AuditEventType, AuditEventFormatter> auditEventFormatterMapBinder() {
+        return MapBinder.newMapBinder(binder(), AuditEventType.class, AuditEventFormatter.class);
+    }
+
+    protected void installAuditEventFormatter(MapBinder<AuditEventType, AuditEventFormatter> auditEventFormatterMapBinder,
+                                              AuditEventType auditEventType,
+                                              Class<? extends AuditEventFormatter> auditEventFormatter) {
+        auditEventFormatterMapBinder.addBinding(auditEventType).to(auditEventFormatter);
+    }
+
+    protected OptionalBinder<AuditEventSender> auditEventSenderBinder() {
+        return OptionalBinder.newOptionalBinder(binder(), AuditEventSender.class);
+    }
+
 
     @Nonnull
     protected Multibinder<Class<? extends DynamicFeature>> jerseyDynamicFeatureBinder() {
@@ -305,6 +345,75 @@ public abstract class Graylog2Module extends AbstractModule {
 
     protected MapBinder<String, PasswordAlgorithm> passwordAlgorithmBinder() {
         return MapBinder.newMapBinder(binder(), String.class, PasswordAlgorithm.class);
+    }
+
+    protected MapBinder<String, AuthenticatingRealm> authenticationRealmBinder() {
+        return MapBinder.newMapBinder(binder(), String.class, AuthenticatingRealm.class);
+    }
+
+    protected MapBinder<String, SearchResponseDecorator.Factory> searchResponseDecoratorBinder() {
+        return MapBinder.newMapBinder(binder(), String.class, SearchResponseDecorator.Factory.class);
+    }
+
+    protected void installSearchResponseDecorator(MapBinder<String, SearchResponseDecorator.Factory> searchResponseDecoratorBinder,
+                                                  Class<? extends SearchResponseDecorator> searchResponseDecoratorClass,
+                                                  Class<? extends SearchResponseDecorator.Factory> searchResponseDecoratorFactoryClass) {
+        install(new FactoryModuleBuilder().implement(SearchResponseDecorator.class, searchResponseDecoratorClass).build(searchResponseDecoratorFactoryClass));
+        searchResponseDecoratorBinder.addBinding(searchResponseDecoratorClass.getCanonicalName()).to(searchResponseDecoratorFactoryClass);
+    }
+
+    protected MapBinder<String, AlertCondition.Factory> alertConditionBinder() {
+        return MapBinder.newMapBinder(binder(), String.class, AlertCondition.Factory.class);
+    }
+
+    protected void installAlertCondition(MapBinder<String, AlertCondition.Factory> alertConditionBinder,
+                                         Class<? extends AlertCondition> alertConditionClass,
+                                         Class<? extends AlertCondition.Factory> alertConditionFactoryClass) {
+        install(new FactoryModuleBuilder().implement(AlertCondition.class, alertConditionClass).build(alertConditionFactoryClass));
+        alertConditionBinder.addBinding(alertConditionClass.getCanonicalName()).to(alertConditionFactoryClass);
+    }
+
+    protected void installAlertConditionWithCustomName(MapBinder<String, AlertCondition.Factory> alertConditionBinder,
+                                                       String identifier,
+                                                       Class<? extends AlertCondition> alertConditionClass,
+                                                       Class<? extends AlertCondition.Factory> alertConditionFactoryClass) {
+        install(new FactoryModuleBuilder().implement(AlertCondition.class, alertConditionClass).build(alertConditionFactoryClass));
+        alertConditionBinder.addBinding(identifier).to(alertConditionFactoryClass);
+    }
+
+    protected MapBinder<String, LookupCache.Factory> lookupCacheBinder() {
+        return MapBinder.newMapBinder(binder(), String.class, LookupCache.Factory.class);
+    }
+
+    protected void installLookupCache(String name,
+                                      Class<? extends LookupCache> cacheClass,
+                                      Class<? extends LookupCache.Factory> factoryClass,
+                                      Class<? extends LookupCacheConfiguration> configClass) {
+        install(new FactoryModuleBuilder().implement(LookupCache.class, cacheClass).build(factoryClass));
+        lookupCacheBinder().addBinding(name).to(factoryClass);
+        jacksonSubTypesBinder().addBinding(name).toInstance(configClass);
+    }
+
+
+    protected MapBinder<String, LookupDataAdapter.Factory> lookupDataAdapterBinder() {
+        return MapBinder.newMapBinder(binder(), String.class, LookupDataAdapter.Factory.class);
+    }
+
+    protected void installLookupDataAdapter(String name,
+                                            Class<? extends LookupDataAdapter> adapterClass,
+                                            Class<? extends LookupDataAdapter.Factory> factoryClass,
+                                            Class<? extends LookupDataAdapterConfiguration> configClass) {
+        install(new FactoryModuleBuilder().implement(LookupDataAdapter.class, adapterClass).build(factoryClass));
+        lookupDataAdapterBinder().addBinding(name).to(factoryClass);
+        jacksonSubTypesBinder().addBinding(name).toInstance(configClass);
+    }
+
+    protected MapBinder<String, Object> jacksonSubTypesBinder() {
+        return MapBinder.newMapBinder(binder(), TypeLiteral.get(String.class), TypeLiteral.get(Object.class), JacksonSubTypes.class);
+    }
+
+    protected Multibinder<Migration> migrationsBinder() {
+        return Multibinder.newSetBinder(binder(), Migration.class);
     }
 
     private static class DynamicFeatureType extends TypeLiteral<Class<? extends DynamicFeature>> {}

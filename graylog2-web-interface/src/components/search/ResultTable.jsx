@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { Button, ButtonGroup } from 'react-bootstrap';
 import Immutable from 'immutable';
@@ -13,17 +14,17 @@ import { MessageTableEntry, MessageTablePaginator } from 'components/search';
 
 const ResultTable = React.createClass({
   propTypes: {
-    highlight: React.PropTypes.bool.isRequired,
-    inputs: React.PropTypes.object.isRequired,
-    messages: React.PropTypes.array.isRequired,
-    nodes: React.PropTypes.object.isRequired,
-    page: React.PropTypes.number.isRequired,
-    resultCount: React.PropTypes.number.isRequired,
-    selectedFields: React.PropTypes.object.isRequired,
-    sortField: React.PropTypes.string.isRequired,
-    sortOrder: React.PropTypes.string.isRequired,
-    streams: React.PropTypes.object.isRequired,
-    searchConfig: React.PropTypes.object.isRequired,
+    highlight: PropTypes.bool.isRequired,
+    inputs: PropTypes.object.isRequired,
+    messages: PropTypes.array.isRequired,
+    nodes: PropTypes.object.isRequired,
+    page: PropTypes.number.isRequired,
+    resultCount: PropTypes.number.isRequired,
+    selectedFields: PropTypes.object.isRequired,
+    sortField: PropTypes.string.isRequired,
+    sortOrder: PropTypes.string.isRequired,
+    streams: PropTypes.object.isRequired,
+    searchConfig: PropTypes.object.isRequired,
   },
   getInitialState() {
     return {
@@ -39,18 +40,18 @@ const ResultTable = React.createClass({
       return;
     }
     const promise = StreamsStore.listStreams();
-    promise.done((streams) => this._onStreamsLoaded(streams));
+    promise.done(streams => this._onStreamsLoaded(streams));
   },
   componentDidUpdate() {
     if (this.state.expandAllRenderAsync) {
       // This may take some time, so we ensure we display a loading indicator in the page
       // while all messages are being expanded
-      setTimeout(() => this.setState({expandAllRenderAsync: false}), this.EXPAND_ALL_RENDER_ASYNC_DELAY);
+      setTimeout(() => this.setState({ expandAllRenderAsync: false }), this.EXPAND_ALL_RENDER_ASYNC_DELAY);
     }
   },
   EXPAND_ALL_RENDER_ASYNC_DELAY: 10,
   _onStreamsLoaded(streams) {
-    this.setState({allStreamsLoaded: true, allStreams: Immutable.List(streams).sortBy(stream => stream.title)});
+    this.setState({ allStreamsLoaded: true, allStreams: Immutable.List(streams).sortBy(stream => stream.title) });
   },
 
   _toggleMessageDetail(id) {
@@ -61,7 +62,7 @@ const ResultTable = React.createClass({
       newSet = this.state.expandedMessages.add(id);
       RefreshActions.disable();
     }
-    this.setState({expandedMessages: newSet});
+    this.setState({ expandedMessages: newSet });
   },
 
   _fieldColumns() {
@@ -69,7 +70,7 @@ const ResultTable = React.createClass({
   },
   _columnStyle(fieldName) {
     if (fieldName.toLowerCase() === 'source' && this._fieldColumns().size > 1) {
-      return {width: 180};
+      return { width: 180 };
     }
     return {};
   },
@@ -78,11 +79,11 @@ const ResultTable = React.createClass({
     const expandedChangeRatio = (this.props.messages.length - this.state.expandedMessages.size) / 100;
     const renderLoadingIndicator = expandedChangeRatio > 0.3;
 
-    const newSet = Immutable.Set(this.props.messages.map((message) => message.id));
-    this.setState({expandedMessages: newSet, expandAllRenderAsync: renderLoadingIndicator});
+    const newSet = Immutable.Set(this.props.messages.map(message => `${message.index}-${message.id}`));
+    this.setState({ expandedMessages: newSet, expandAllRenderAsync: renderLoadingIndicator });
   },
   collapseAll() {
-    this.setState({expandedMessages: Immutable.Set()});
+    this.setState({ expandedMessages: Immutable.Set() });
   },
   _handleSort(e, field, order) {
     e.preventDefault();
@@ -101,15 +102,15 @@ const ResultTable = React.createClass({
       if (this.props.sortOrder.toLowerCase().localeCompare('desc') === 0) {
         sortLinks = (
           <span>
-            <i className={classesDesc + ' sort-order-active'}/>
-            <a href="#" onClick={(e) => this._handleSort(e, fieldName, 'asc')}><i className={classesAsc}/></a>
+            <i className={`${classesDesc} sort-order-active`} />
+            <a href="#" onClick={e => this._handleSort(e, fieldName, 'asc')}><i className={classesAsc} /></a>
           </span>
         );
       } else {
         sortLinks = (
           <span>
-            <i className={classesAsc + ' sort-order-active'}/>
-            <a href="#" onClick={(e) => this._handleSort(e, fieldName, 'desc')}><i className={classesDesc}/></a>
+            <i className={`${classesAsc} sort-order-active`} />
+            <a href="#" onClick={e => this._handleSort(e, fieldName, 'desc')}><i className={classesDesc} /></a>
           </span>
         );
       }
@@ -117,8 +118,8 @@ const ResultTable = React.createClass({
       // the given fieldname is not being sorted on
       sortLinks = (
         <span className="sort-order">
-          <a href="#" onClick={(e) => this._handleSort(e, fieldName, 'asc')}><i className={classesAsc}/></a>
-          <a href="#" onClick={(e) => this._handleSort(e, fieldName, 'desc')}><i className={classesDesc}/></a>
+          <a href="#" onClick={e => this._handleSort(e, fieldName, 'asc')}><i className={classesAsc} /></a>
+          <a href="#" onClick={e => this._handleSort(e, fieldName, 'desc')}><i className={classesDesc} /></a>
         </span>
       );
     }
@@ -132,48 +133,63 @@ const ResultTable = React.createClass({
         <h1 className="pull-left">Messages</h1>
 
         <ButtonGroup bsSize="small" className="pull-right">
-          <Button title="Expand all messages" onClick={this.expandAll}><i className="fa fa-expand"/></Button>
+          <Button title="Expand all messages" onClick={this.expandAll}><i className="fa fa-expand" /></Button>
           <Button title="Collapse all messages"
                   onClick={this.collapseAll}
-                  disabled={this.state.expandedMessages.size === 0}><i className="fa fa-compress"/></Button>
+                  disabled={this.state.expandedMessages.size === 0}><i className="fa fa-compress" /></Button>
         </ButtonGroup>
 
-        <MessageTablePaginator position="top" currentPage={Number(this.props.page)} resultCount={this.props.resultCount}/>
+        <MessageTablePaginator position="top" currentPage={Number(this.props.page)}
+                               resultCount={this.props.resultCount} />
 
-        <div className="table-responsive">
-          <table className="table table-condensed messages">
-            <thead>
-            <tr>
-              <th style={{width: 180}}>Timestamp {this._sortIcons('timestamp')}</th>
-              { selectedColumns.toSeq().map(selectedFieldName => <th key={selectedFieldName}
-                                                                     style={this._columnStyle(selectedFieldName)}>{selectedFieldName} {this._sortIcons(selectedFieldName) }</th>) }
-            </tr>
-            </thead>
-            { this.props.messages.map((message) => <MessageTableEntry key={message.id}
-                                                                      message={message}
-                                                                      showMessageRow={this.props.selectedFields.contains('message')}
-                                                                      selectedFields={selectedColumns}
-                                                                      expanded={this.state.expandedMessages.contains(message.id)}
-                                                                      toggleDetail={this._toggleMessageDetail}
-                                                                      inputs={this.props.inputs}
-                                                                      streams={this.props.streams}
-                                                                      allStreams={this.state.allStreams}
-                                                                      allStreamsLoaded={this.state.allStreamsLoaded}
-                                                                      nodes={this.props.nodes}
-                                                                      highlight={this.props.highlight}
-                                                                      highlightMessage={SearchStore.highlightMessage}
-                                                                      expandAllRenderAsync={this.state.expandAllRenderAsync}
-                                                                      searchConfig={this.props.searchConfig}
-            />) }
-          </table>
+        <div className="search-results-table">
+          <div className="table-responsive">
+            <div className="messages-container">
+              <table className="table table-condensed messages">
+                <thead>
+                  <tr>
+                    <th style={{ width: 180 }}>Timestamp {this._sortIcons('timestamp')}</th>
+                    {selectedColumns.toSeq().map((selectedFieldName) => {
+                      return (
+                        <th key={selectedFieldName}
+                            style={this._columnStyle(selectedFieldName)}>
+                          {selectedFieldName} {this._sortIcons(selectedFieldName)}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                {this.props.messages.map((message) => {
+                  return (
+                    <MessageTableEntry key={`${message.index}-${message.id}`}
+                                       message={message}
+                                       showMessageRow={this.props.selectedFields.contains('message')}
+                                       selectedFields={selectedColumns}
+                                       expanded={this.state.expandedMessages.contains(`${message.index}-${message.id}`)}
+                                       toggleDetail={this._toggleMessageDetail}
+                                       inputs={this.props.inputs}
+                                       streams={this.props.streams}
+                                       allStreams={this.state.allStreams}
+                                       allStreamsLoaded={this.state.allStreamsLoaded}
+                                       nodes={this.props.nodes}
+                                       highlight={this.props.highlight}
+                                       highlightMessage={SearchStore.highlightMessage}
+                                       expandAllRenderAsync={this.state.expandAllRenderAsync}
+                                       searchConfig={this.props.searchConfig} />
+                  );
+                })}
+              </table>
+            </div>
+          </div>
         </div>
 
-        <MessageTablePaginator position="bottom" currentPage={Number(this.props.page)} resultCount={this.props.resultCount}>
-          <ButtonGroup bsSize="small" className="pull-right" style={{position: 'absolute', marginTop: 20, right: 10}}>
-            <Button title="Expand all messages" onClick={this.expandAll}><i className="fa fa-expand"/></Button>
+        <MessageTablePaginator position="bottom" currentPage={Number(this.props.page)}
+                               resultCount={this.props.resultCount}>
+          <ButtonGroup bsSize="small" className="pull-right" style={{ position: 'absolute', marginTop: 20, right: 10 }}>
+            <Button title="Expand all messages" onClick={this.expandAll}><i className="fa fa-expand" /></Button>
             <Button title="Collapse all messages"
                     onClick={this.collapseAll}
-                    disabled={this.state.expandedMessages.size === 0}><i className="fa fa-compress"/></Button>
+                    disabled={this.state.expandedMessages.size === 0}><i className="fa fa-compress" /></Button>
           </ButtonGroup>
         </MessageTablePaginator>
       </div>

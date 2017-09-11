@@ -28,6 +28,7 @@ import org.graylog2.plugin.inject.Graylog2Module;
 import org.graylog2.plugin.inputs.codecs.Codec;
 
 public class CodecsModule extends Graylog2Module {
+    @Override
     protected void configure() {
         final MapBinder<String, Codec.Factory<? extends Codec>> mapBinder = codecMapBinder();
 
@@ -40,5 +41,4 @@ public class CodecsModule extends Graylog2Module {
         installCodec(mapBinder, GelfCodec.class);
         installCodec(mapBinder, JsonPathCodec.class);
     }
-
 }

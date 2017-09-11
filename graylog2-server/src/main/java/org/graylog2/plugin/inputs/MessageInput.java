@@ -157,6 +157,7 @@ public abstract class MessageInput implements Stoppable {
         }
     }
 
+    @Override
     public void stop() {
         transport.stop();
         cleanupMetrics();
@@ -263,28 +264,32 @@ public abstract class MessageInput implements Stoppable {
     }
 
     public Map<String, Object> asMap() {
-        final MessageInput messageInput = this;
-        return new HashMap<String, Object>() {{
-            put(FIELD_TYPE, messageInput.getClass().getCanonicalName());
-            put(FIELD_NAME, messageInput.getName());
-            put(FIELD_TITLE, messageInput.getTitle());
-            put(FIELD_CREATOR_USER_ID, messageInput.getCreatorUserId());
-            put(FIELD_GLOBAL, messageInput.isGlobal());
-            put(FIELD_CONTENT_PACK, messageInput.getContentPack());
-            put(FIELD_CONFIGURATION, messageInput.getConfiguration().getSource());
+        // This has to be mutable (see #asMapMasked) and support null values!
+        final Map<String, Object> map = new HashMap<>();
+        map.put(FIELD_TYPE, getClass().getCanonicalName());
+        map.put(FIELD_NAME, getName());
+        map.put(FIELD_TITLE, getTitle());
+        map.put(FIELD_CREATOR_USER_ID, getCreatorUserId());
+        map.put(FIELD_GLOBAL, isGlobal());
+        map.put(FIELD_CONTENT_PACK, getContentPack());
+        map.put(FIELD_CONFIGURATION, getConfiguration().getSource());
 
-            if (messageInput.getCreatedAt() != null)
-                put(FIELD_CREATED_AT, messageInput.getCreatedAt());
-            else
-                put(FIELD_CREATED_AT, Tools.nowUTC());
+        if (getCreatedAt() != null) {
+            map.put(FIELD_CREATED_AT, getCreatedAt());
+        } else {
+            map.put(FIELD_CREATED_AT, Tools.nowUTC());
+        }
 
 
-            if (messageInput.getStaticFields() != null && !messageInput.getStaticFields().isEmpty())
-                put(FIELD_STATIC_FIELDS, messageInput.getStaticFields());
+        if (getStaticFields() != null && !getStaticFields().isEmpty()) {
+            map.put(FIELD_STATIC_FIELDS, getStaticFields());
+        }
 
-            if (!messageInput.isGlobal())
-                put(FIELD_NODE_ID, messageInput.getNodeId());
-        }};
+        if (!isGlobal()) {
+            map.put(FIELD_NODE_ID, getNodeId());
+        }
+
+        return map;
     }
 
     public void addStaticField(String key, String value) {

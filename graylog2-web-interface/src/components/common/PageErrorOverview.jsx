@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { Col, Jumbotron, Row } from 'react-bootstrap';
 
@@ -5,7 +6,7 @@ import style from '!style/useable!css!pages/NotFoundPage.css';
 
 const PageErrorOverview = React.createClass({
   propTypes: {
-    errors: React.PropTypes.array.isRequired,
+    errors: PropTypes.array.isRequired,
   },
   componentDidMount() {
     style.use();
@@ -16,7 +17,7 @@ const PageErrorOverview = React.createClass({
   },
 
   _formatErrors(errors) {
-    const formattedErrors = errors ? errors.map((error) => <li>{error.toString()}</li>) : [];
+    const formattedErrors = errors ? errors.map(error => <li>{error.toString()}</li>) : [];
     return (
       <ul>
         {formattedErrors}

@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
 import numeral from 'numeral';
 
@@ -43,20 +44,19 @@ const NodeThroughput = React.createClass({
       return (
         <span>
           Processing <strong>{numeral(metrics.totalIn).format('0,0')}</strong> incoming and <strong>
-          {numeral(metrics.totalOut).format('0,0')}</strong> outgoing msg/s.
-        </span>
-      );
-    } else {
-      return (
-        <span>
-          In {numeral(metrics.totalIn).format('0,0')} / Out {numeral(metrics.totalOut).format('0,0')} msg/s.
+            {numeral(metrics.totalOut).format('0,0')}</strong> outgoing msg/s.
         </span>
       );
     }
+    return (
+      <span>
+          In {numeral(metrics.totalIn).format('0,0')} / Out {numeral(metrics.totalOut).format('0,0')} msg/s.
+        </span>
+    );
   },
   render() {
     if (this._isLoading()) {
-      return <Spinner text="Loading throughput..."/>;
+      return <Spinner text="Loading throughput..." />;
     }
 
     const nodeId = this.props.nodeId;

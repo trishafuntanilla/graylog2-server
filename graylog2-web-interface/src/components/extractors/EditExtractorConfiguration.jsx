@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react';
-import {Col, Panel} from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Col, Panel } from 'react-bootstrap';
 
 import {
   CopyInputExtractorConfiguration,
@@ -9,6 +10,7 @@ import {
   RegexReplaceExtractorConfiguration,
   SplitAndIndexExtractorConfiguration,
   SubstringExtractorConfiguration,
+  LookupTableExtractorConfiguration,
 } from 'components/extractors/extractors_configuration';
 
 import ExtractorUtils from 'util/ExtractorUtils';
@@ -26,65 +28,73 @@ const EditExtractorConfiguration = React.createClass({
     };
   },
   _onExtractorPreviewLoad(extractorPreviewNode) {
-    this.setState({extractorPreview: extractorPreviewNode});
+    this.setState({ extractorPreview: extractorPreviewNode });
   },
   render() {
     let extractorConfiguration;
 
     switch (this.props.extractorType) {
-    case ExtractorUtils.ExtractorTypes.COPY_INPUT:
-      extractorConfiguration = <CopyInputExtractorConfiguration/>;
-      break;
-    case ExtractorUtils.ExtractorTypes.GROK:
-      extractorConfiguration = (
-        <GrokExtractorConfiguration configuration={this.props.configuration}
+      case ExtractorUtils.ExtractorTypes.COPY_INPUT:
+        extractorConfiguration = <CopyInputExtractorConfiguration />;
+        break;
+      case ExtractorUtils.ExtractorTypes.GROK:
+        extractorConfiguration = (
+          <GrokExtractorConfiguration configuration={this.props.configuration}
                                     exampleMessage={this.props.exampleMessage}
                                     onChange={this.props.onChange}
-                                    onExtractorPreviewLoad={this._onExtractorPreviewLoad}/>
+                                    onExtractorPreviewLoad={this._onExtractorPreviewLoad} />
       );
-      break;
-    case ExtractorUtils.ExtractorTypes.JSON:
-      extractorConfiguration = (
-        <JSONExtractorConfiguration configuration={this.props.configuration}
+        break;
+      case ExtractorUtils.ExtractorTypes.JSON:
+        extractorConfiguration = (
+          <JSONExtractorConfiguration configuration={this.props.configuration}
                                     exampleMessage={this.props.exampleMessage}
                                     onChange={this.props.onChange}
-                                    onExtractorPreviewLoad={this._onExtractorPreviewLoad}/>
+                                    onExtractorPreviewLoad={this._onExtractorPreviewLoad} />
       );
-      break;
-    case ExtractorUtils.ExtractorTypes.REGEX:
-      extractorConfiguration = (
-        <RegexExtractorConfiguration configuration={this.props.configuration}
+        break;
+      case ExtractorUtils.ExtractorTypes.REGEX:
+        extractorConfiguration = (
+          <RegexExtractorConfiguration configuration={this.props.configuration}
                                      exampleMessage={this.props.exampleMessage}
                                      onChange={this.props.onChange}
-                                     onExtractorPreviewLoad={this._onExtractorPreviewLoad}/>
+                                     onExtractorPreviewLoad={this._onExtractorPreviewLoad} />
       );
-      break;
-    case ExtractorUtils.ExtractorTypes.REGEX_REPLACE:
-      extractorConfiguration = (
-        <RegexReplaceExtractorConfiguration configuration={this.props.configuration}
+        break;
+      case ExtractorUtils.ExtractorTypes.REGEX_REPLACE:
+        extractorConfiguration = (
+          <RegexReplaceExtractorConfiguration configuration={this.props.configuration}
                                             exampleMessage={this.props.exampleMessage}
                                             onChange={this.props.onChange}
-                                            onExtractorPreviewLoad={this._onExtractorPreviewLoad}/>
+                                            onExtractorPreviewLoad={this._onExtractorPreviewLoad} />
       );
-      break;
-    case ExtractorUtils.ExtractorTypes.SUBSTRING:
-      extractorConfiguration = (
-        <SubstringExtractorConfiguration configuration={this.props.configuration}
+        break;
+      case ExtractorUtils.ExtractorTypes.SUBSTRING:
+        extractorConfiguration = (
+          <SubstringExtractorConfiguration configuration={this.props.configuration}
                                          exampleMessage={this.props.exampleMessage}
                                          onChange={this.props.onChange}
-                                         onExtractorPreviewLoad={this._onExtractorPreviewLoad}/>
+                                         onExtractorPreviewLoad={this._onExtractorPreviewLoad} />
       );
-      break;
-    case ExtractorUtils.ExtractorTypes.SPLIT_AND_INDEX:
-      extractorConfiguration = (
-        <SplitAndIndexExtractorConfiguration configuration={this.props.configuration}
+        break;
+      case ExtractorUtils.ExtractorTypes.SPLIT_AND_INDEX:
+        extractorConfiguration = (
+          <SplitAndIndexExtractorConfiguration configuration={this.props.configuration}
                                              exampleMessage={this.props.exampleMessage}
                                              onChange={this.props.onChange}
-                                             onExtractorPreviewLoad={this._onExtractorPreviewLoad}/>
+                                             onExtractorPreviewLoad={this._onExtractorPreviewLoad} />
       );
-      break;
-    default:
-      console.warn(`Unsupported extractor type ${this.props.extractorType}`);
+        break;
+      case ExtractorUtils.ExtractorTypes.LOOKUP_TABLE:
+        extractorConfiguration = (
+          <LookupTableExtractorConfiguration configuration={this.props.configuration}
+                                             exampleMessage={this.props.exampleMessage}
+                                             onChange={this.props.onChange}
+                                             onExtractorPreviewLoad={this._onExtractorPreviewLoad} />
+        );
+        break;
+      default:
+        console.warn(`Unsupported extractor type ${this.props.extractorType}`);
     }
 
     let extractorPreview;

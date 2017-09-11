@@ -1,5 +1,11 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
+
+import ActionsProvider from 'injection/ActionsProvider';
+const MessagesActions = ActionsProvider.getActions('Messages');
+
 import StoreProvider from 'injection/StoreProvider';
+// eslint-disable-next-line no-unused-vars
 const MessagesStore = StoreProvider.getStore('Messages');
 
 const MessageLoader = React.createClass({
@@ -16,11 +22,12 @@ const MessageLoader = React.createClass({
   getInitialState() {
     return ({
       hidden: this.props.hidden,
+      loading: false,
     });
   },
 
   toggleMessageForm() {
-    this.setState({hidden: !this.state.hidden}, this._focusMessageLoaderForm);
+    this.setState({ hidden: !this.state.hidden }, this._focusMessageLoaderForm);
   },
   _focusMessageLoaderForm() {
     if (!this.state.hidden) {
@@ -33,8 +40,10 @@ const MessageLoader = React.createClass({
     if (messageId === '' || index === '') {
       return;
     }
-    const promise = MessagesStore.loadMessage(index, messageId);
+    this.setState({ loading: true });
+    const promise = MessagesActions.loadMessage.triggerPromise(index, messageId);
     promise.then(data => this.props.onMessageLoaded(data));
+    promise.finally(() => this.setState({ loading: false }));
 
     event.preventDefault();
   },
@@ -56,10 +65,10 @@ const MessageLoader = React.createClass({
     const loadMessageForm = (
       <div>
         <form className="form-inline message-loader-form" onSubmit={this.loadMessage}>
-          <input type="text" ref="messageId" className="form-control" placeholder="Message ID" required/>
-          <input type="text" ref="index" className="form-control" placeholder="Index" required/>
-          <button ref="submitButton" type="submit" className="btn btn-info">
-            Load message
+          <input type="text" ref="messageId" className="form-control message-id-input" placeholder="Message ID" required />
+          <input type="text" ref="index" className="form-control" placeholder="Index" required />
+          <button ref="submitButton" type="submit" className="btn btn-info" disabled={this.state.loading}>
+            {this.state.loading ? 'Loading message...' : 'Load message'}
           </button>
         </form>
       </div>

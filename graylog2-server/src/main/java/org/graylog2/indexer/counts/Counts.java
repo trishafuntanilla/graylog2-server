@@ -16,28 +16,55 @@
  */
 package org.graylog2.indexer.counts;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
-import org.graylog2.indexer.Deflector;
+import io.searchbox.client.JestClient;
+import io.searchbox.core.Count;
+import io.searchbox.core.CountResult;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.graylog2.indexer.IndexSet;
+import org.graylog2.indexer.IndexSetRegistry;
+import org.graylog2.indexer.cluster.jest.JestUtils;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.Arrays;
+import java.util.List;
 
 @Singleton
 public class Counts {
-    private final Client c;
-    private final Deflector deflector;
+    private final JestClient jestClient;
+    private final IndexSetRegistry indexSetRegistry;
 
     @Inject
-    public Counts(Client client, Deflector deflector) {
-        this.c = client;
-        this.deflector = deflector;
+    public Counts(JestClient jestClient, IndexSetRegistry indexSetRegistry) {
+        this.jestClient = jestClient;
+        this.indexSetRegistry = indexSetRegistry;
     }
 
     public long total() {
-        final SearchRequest request = c.prepareSearch(deflector.getAllGraylogIndexNames())
-                .setSize(0)
-                .request();
-        return c.search(request).actionGet().getHits().totalHits();
+        return totalCount(indexSetRegistry.getManagedIndices());
+    }
+
+    public long total(final IndexSet indexSet) {
+        return totalCount(indexSet.getManagedIndices());
+    }
+
+    private long totalCount(final String[] indexNames) {
+        // Return 0 if there are no indices in the given index set. If we run the query with an empty index list,
+        // Elasticsearch will count all documents in all indices and thus return a wrong count.
+        if (indexNames.length == 0) {
+            return 0L;
+        }
+
+        final List<String> indices = Arrays.asList(indexNames);
+        final String query = new SearchSourceBuilder()
+                .query(QueryBuilders.matchAllQuery())
+                .toString();
+        final Count request = new Count.Builder()
+                .query(query)
+                .addIndex(indices)
+                .build();
+        final CountResult result = JestUtils.execute(jestClient, request, () -> "Fetching message count failed for indices " + indices);
+        return result.getCount().longValue();
     }
 }

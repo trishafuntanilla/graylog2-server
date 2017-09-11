@@ -19,6 +19,7 @@ package org.graylog2.users;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.inject.assistedinject.Assisted;
 import com.google.inject.assistedinject.AssistedInject;
 import org.bson.types.ObjectId;
@@ -34,6 +35,7 @@ import org.graylog2.database.validators.ListValidator;
 import org.graylog2.plugin.database.users.User;
 import org.graylog2.plugin.database.validators.Validator;
 import org.graylog2.plugin.security.PasswordAlgorithm;
+import org.graylog2.rest.models.users.requests.Startpage;
 import org.graylog2.security.PasswordAlgorithmFactory;
 import org.graylog2.shared.security.Permissions;
 import org.joda.time.DateTimeZone;
@@ -60,7 +62,9 @@ public class UserImpl extends PersistedImpl implements User {
 
     public interface Factory {
         UserImpl create(final Map<String, Object> fields);
+
         UserImpl create(final ObjectId id, final Map<String, Object> fields);
+
         LocalAdminUser createLocalAdminUser(String adminRoleObjectId);
     }
 
@@ -68,7 +72,6 @@ public class UserImpl extends PersistedImpl implements User {
 
     private static final Map<String, Object> DEFAULT_PREFERENCES = new ImmutableMap.Builder<String, Object>()
             .put("updateUnfocussed", false)
-            .put("disableExpensiveUpdates", false)
             .put("enableSmartSearch", true)
             .build();
 
@@ -113,6 +116,7 @@ public class UserImpl extends PersistedImpl implements User {
         return false;
     }
 
+    @Override
     public Map<String, Validator> getValidations() {
         return ImmutableMap.<String, Validator>builder()
                 .put(USERNAME, new LimitedStringValidator(1, MAX_USERNAME_LENGTH))
@@ -172,9 +176,10 @@ public class UserImpl extends PersistedImpl implements User {
 
     @Override
     public void setPermissions(final List<String> permissions) {
+        final List<String> perms = Lists.newArrayList(permissions);
         // Do not store the dynamic user self edit permissions
-        permissions.removeAll(this.permissions.userSelfEditPermissions(getName()));
-        fields.put(PERMISSIONS, permissions);
+        perms.removeAll(this.permissions.userSelfEditPermissions(getName()));
+        fields.put(PERMISSIONS, perms);
     }
 
     @Override
@@ -182,7 +187,7 @@ public class UserImpl extends PersistedImpl implements User {
     public Map<String, Object> getPreferences() {
         final Map<String, Object> preferences = (Map<String, Object>) fields.get(PREFERENCES);
 
-        return (preferences == null || preferences.isEmpty()) ? DEFAULT_PREFERENCES : preferences;
+        return preferences == null || preferences.isEmpty() ? DEFAULT_PREFERENCES : preferences;
     }
 
     @Override
@@ -191,9 +196,7 @@ public class UserImpl extends PersistedImpl implements User {
     }
 
     @Override
-    public Map<String, String> getStartpage() {
-        final Map<String, String> startpage = new HashMap<>();
-
+    public Startpage getStartpage() {
         if (fields.containsKey(STARTPAGE)) {
             @SuppressWarnings("unchecked")
             final Map<String, String> obj = (Map<String, String>) fields.get(STARTPAGE);
@@ -201,12 +204,11 @@ public class UserImpl extends PersistedImpl implements User {
             final String id = obj.get("id");
 
             if (type != null && id != null) {
-                startpage.put("type", type);
-                startpage.put("id", id);
+                return Startpage.create(type, id);
             }
         }
 
-        return startpage;
+        return null;
     }
 
     @Override
@@ -314,14 +316,18 @@ public class UserImpl extends PersistedImpl implements User {
 
     @Override
     public void setStartpage(final String type, final String id) {
-        final Map<String, String> startpage = new HashMap<>();
+        final Startpage nextStartpage = type != null && id != null ? Startpage.create(type, id) : null;
+        this.setStartpage(nextStartpage);
+    }
 
-        if (type != null && id != null) {
-            startpage.put("type", type);
-            startpage.put("id", id);
+    @Override
+    public void setStartpage(Startpage startpage) {
+        final HashMap<String, String> startpageMap = new HashMap<>();
+        if (startpage != null) {
+            startpageMap.put("type", startpage.type());
+            startpageMap.put("id", startpage.id());
         }
-
-        this.fields.put(STARTPAGE, startpage);
+        this.fields.put(STARTPAGE, startpageMap);
     }
 
     public static class LocalAdminUser extends UserImpl {
@@ -330,8 +336,8 @@ public class UserImpl extends PersistedImpl implements User {
 
         @AssistedInject
         LocalAdminUser(PasswordAlgorithmFactory passwordAlgorithmFactory,
-                              Configuration configuration,
-                              @Assisted String adminRoleObjectId) {
+                       Configuration configuration,
+                       @Assisted String adminRoleObjectId) {
             super(passwordAlgorithmFactory, null, null, Collections.<String, Object>emptyMap());
             this.configuration = configuration;
             this.roles = ImmutableSet.of(adminRoleObjectId);
@@ -347,6 +353,7 @@ public class UserImpl extends PersistedImpl implements User {
             return "Administrator";
         }
 
+        @Override
         public String getEmail() {
             return configuration.getRootEmail();
         }

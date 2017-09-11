@@ -1,6 +1,7 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import $ from 'jquery';
-import {} from 'jquery-ui';
+import {} from 'jquery-ui/ui/effects/effect-bounce';
 import dc from 'dc';
 import d3 from 'd3';
 
@@ -38,7 +39,7 @@ const SourceLineChart = React.createClass({
 
   _configureWidth(lineChartWidth) {
     this._lineChart.width(lineChartWidth);
-    this.setState({lineChartWidth: String(lineChartWidth) + 'px'});
+    this.setState({ lineChartWidth: `${String(lineChartWidth)}px` });
   },
 
   updateWidth() {
@@ -63,7 +64,7 @@ const SourceLineChart = React.createClass({
     this._lineChart = dc.lineChart(lineChartDomNode);
     this._lineChart
       .height(200)
-      .margins({left: 35, right: 20, top: 20, bottom: 20})
+      .margins({ left: 35, right: 20, top: 20, bottom: 20 })
       .dimension(dimension)
       .group(group)
       .x(d3.time.scale())
@@ -95,7 +96,7 @@ const SourceLineChart = React.createClass({
     };
     const loadingSpinner = (
       <div className="sources overlay" style={loadingSpinnerStyle}>
-        <i className="fa fa-spin fa-refresh spinner"/>
+        <i className="fa fa-spin fa-refresh spinner" />
       </div>
     );
 

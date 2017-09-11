@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.TimeLimiter;
 import com.google.common.util.concurrent.UncheckedTimeoutException;
 import com.google.inject.assistedinject.Assisted;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.streams.DefaultStream;
 import org.graylog2.plugin.streams.Stream;
 import org.graylog2.plugin.streams.StreamRule;
 import org.graylog2.plugin.streams.StreamRuleType;
@@ -36,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -52,13 +54,14 @@ import java.util.concurrent.TimeUnit;
 public class StreamRouterEngine {
     private static final Logger LOG = LoggerFactory.getLogger(StreamRouterEngine.class);
 
-    private final EnumSet<StreamRuleType> ruleTypesNotNeedingFieldPresence = EnumSet.of(StreamRuleType.PRESENCE, StreamRuleType.EXACT, StreamRuleType.REGEX);
+    private final EnumSet<StreamRuleType> ruleTypesNotNeedingFieldPresence = EnumSet.of(StreamRuleType.PRESENCE, StreamRuleType.EXACT, StreamRuleType.REGEX, StreamRuleType.ALWAYS_MATCH);
     private final List<Stream> streams;
     private final StreamFaultManager streamFaultManager;
     private final StreamMetrics streamMetrics;
     private final TimeLimiter timeLimiter;
     private final long streamProcessingTimeout;
     private final String fingerprint;
+    private final Provider<Stream> defaultStreamProvider;
 
     private final List<Rule> rulesList;
 
@@ -70,19 +73,23 @@ public class StreamRouterEngine {
     public StreamRouterEngine(@Assisted List<Stream> streams,
                               @Assisted ExecutorService executorService,
                               StreamFaultManager streamFaultManager,
-                              StreamMetrics streamMetrics) {
+                              StreamMetrics streamMetrics,
+                              @DefaultStream Provider<Stream> defaultStreamProvider) {
         this.streams = streams;
         this.streamFaultManager = streamFaultManager;
         this.streamMetrics = streamMetrics;
         this.timeLimiter = new SimpleTimeLimiter(executorService);
         this.streamProcessingTimeout = streamFaultManager.getStreamProcessingTimeout();
         this.fingerprint = new StreamListFingerprint(streams).getFingerprint();
+        this.defaultStreamProvider = defaultStreamProvider;
 
+        final List<Rule> alwaysMatchRules = Lists.newArrayList();
         final List<Rule> presenceRules = Lists.newArrayList();
         final List<Rule> exactRules = Lists.newArrayList();
         final List<Rule> greaterRules = Lists.newArrayList();
         final List<Rule> smallerRules = Lists.newArrayList();
         final List<Rule> regexRules = Lists.newArrayList();
+        final List<Rule> containsRules = Lists.newArrayList();
 
         for (Stream stream : streams) {
             for (StreamRule streamRule : stream.getStreamRules()) {
@@ -94,6 +101,9 @@ public class StreamRouterEngine {
                     continue;
                 }
                 switch (streamRule.getType()) {
+                    case ALWAYS_MATCH:
+                        alwaysMatchRules.add(rule);
+                        break;
                     case PRESENCE:
                         presenceRules.add(rule);
                         break;
@@ -109,16 +119,21 @@ public class StreamRouterEngine {
                     case REGEX:
                         regexRules.add(rule);
                         break;
+                    case CONTAINS:
+                        containsRules.add(rule);
+                        break;
                 }
             }
         }
 
-        final int size = presenceRules.size() + exactRules.size() + greaterRules.size() + smallerRules.size() + regexRules.size();
+        final int size = alwaysMatchRules.size() + presenceRules.size() + exactRules.size() + greaterRules.size() + smallerRules.size() + containsRules.size() + regexRules.size();
         this.rulesList = Lists.newArrayListWithCapacity(size);
+        this.rulesList.addAll(alwaysMatchRules);
         this.rulesList.addAll(presenceRules);
         this.rulesList.addAll(exactRules);
         this.rulesList.addAll(greaterRules);
         this.rulesList.addAll(smallerRules);
+        this.rulesList.addAll(containsRules);
         this.rulesList.addAll(regexRules);
     }
 
@@ -191,8 +206,27 @@ public class StreamRouterEngine {
             }
         }
 
+        final Stream defaultStream = defaultStreamProvider.get();
+        boolean alreadyRemovedDefaultStream = false;
         for (Stream stream : result) {
             streamMetrics.markIncomingMeter(stream.getId());
+            if (stream.getRemoveMatchesFromDefaultStream()) {
+                if (alreadyRemovedDefaultStream || message.removeStream(defaultStream)) {
+                    alreadyRemovedDefaultStream = true;
+                    if (LOG.isTraceEnabled()) {
+                        LOG.trace("Successfully removed default stream <{}> from message <{}>", defaultStream.getId(), message.getId());
+                    }
+                } else {
+                    if (LOG.isWarnEnabled()) {
+                        LOG.warn("Couldn't remove default stream <{}> from message <{}>", defaultStream.getId(), message.getId());
+                    }
+                }
+            }
+        }
+        // either the message stayed on the default stream, in which case we mark that stream's throughput,
+        // or someone removed it, in which case we don't mark it.
+        if (!alreadyRemovedDefaultStream) {
+            streamMetrics.markIncomingMeter(defaultStream.getId());
         }
 
         return ImmutableList.copyOf(result);
@@ -315,7 +349,7 @@ public class StreamRouterEngine {
         public void matchMessage(Message message) {
             for (Rule rule : rules) {
                 final Stream match = rule.match(message);
-                matches.put(rule.getStreamRule(), (match != null && match.equals(stream)));
+                matches.put(rule.getStreamRule(), match != null && match.equals(stream));
             }
         }
 

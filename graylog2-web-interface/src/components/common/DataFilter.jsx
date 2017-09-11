@@ -1,12 +1,13 @@
+import PropTypes from 'prop-types';
 import React from 'react';
-import { Input } from 'react-bootstrap';
+import { Input } from 'components/bootstrap';
 
 const DataFilter = React.createClass({
   propTypes: {
-    data: React.PropTypes.any,
-    filterKeys: React.PropTypes.arrayOf(React.PropTypes.string),
-    label: React.PropTypes.string,
-    onFilterUpdate: React.PropTypes.func,
+    data: PropTypes.any,
+    filterKeys: PropTypes.arrayOf(PropTypes.string),
+    label: PropTypes.string,
+    onFilterUpdate: PropTypes.func,
   },
   getInitialState() {
     return {
@@ -26,7 +27,7 @@ const DataFilter = React.createClass({
     }, this.filterData);
   },
   onFilterUpdate(event) {
-    this.setState({filter: event.target.value}, this.filterData);
+    this.setState({ filter: event.target.value }, this.filterData);
   },
   filterData() {
     const filteredData = this.state.data.filter((datum) => {
@@ -39,13 +40,13 @@ const DataFilter = React.createClass({
   },
   render() {
     return (
-      <form className="form-inline" onSubmit={(e) => e.preventDefault()}>
+      <form className="form-inline" onSubmit={e => e.preventDefault()}>
         <Input type="text"
                groupClassName="form-group-sm"
                label={this.props.label}
                name="filter"
                value={this.state.filter}
-               onChange={this.onFilterUpdate}/>
+               onChange={this.onFilterUpdate} />
       </form>
     );
   },

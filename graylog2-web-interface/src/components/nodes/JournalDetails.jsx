@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
 import { LinkContainer } from 'react-router-bootstrap';
 import { ProgressBar, Row, Col, Alert } from 'react-bootstrap';
@@ -33,8 +34,8 @@ const JournalDetails = React.createClass({
   },
 
   componentDidMount() {
-    JournalStore.get(this.props.nodeId).then(journalInformation => {
-      this.setState({journalInformation: journalInformation}, this._listenToMetrics);
+    JournalStore.get(this.props.nodeId).then((journalInformation) => {
+      this.setState({ journalInformation: journalInformation }, this._listenToMetrics);
     });
   },
 
@@ -65,7 +66,7 @@ const JournalDetails = React.createClass({
 
   render() {
     if (this._isLoading()) {
-      return <Spinner text="Loading journal metrics..."/>;
+      return <Spinner text="Loading journal metrics..." />;
     }
 
     const nodeId = this.props.nodeId;
@@ -75,7 +76,7 @@ const JournalDetails = React.createClass({
     if (!journalInformation.enabled) {
       return (
         <Alert bsStyle="warning">
-          <i className="fa fa-exclamation-triangle"/>&nbsp; The disk journal is disabled on this node.
+          <i className="fa fa-exclamation-triangle" />&nbsp; The disk journal is disabled on this node.
         </Alert>
       );
     }
@@ -85,7 +86,7 @@ const JournalDetails = React.createClass({
     if (Object.keys(metrics).length === 0) {
       return (
         <Alert bsStyle="warning">
-          <i className="fa fa-exclamation-triangle"/>&nbsp; Journal metrics unavailable.
+          <i className="fa fa-exclamation-triangle" />&nbsp; Journal metrics unavailable.
         </Alert>
       );
     }
@@ -96,7 +97,7 @@ const JournalDetails = React.createClass({
       overcommittedWarning = (
         <span>
           <strong>Warning!</strong> The journal utilization is exceeding the maximum size defined.
-          {' '}<LinkContainer to={Routes.SYSTEM.OVERVIEW}><a>Click here</a></LinkContainer> for more information.<br/>
+          {' '}<LinkContainer to={Routes.SYSTEM.OVERVIEW}><a>Click here</a></LinkContainer> for more information.<br />
         </span>
       );
     }
@@ -109,9 +110,9 @@ const JournalDetails = React.createClass({
             <dt>Path:</dt>
             <dd>{journalInformation.journal_config.directory}</dd>
             <dt>Earliest entry:</dt>
-            <dd><Timestamp dateTime={oldestSegment} relative/></dd>
+            <dd><Timestamp dateTime={oldestSegment} relative /></dd>
             <dt>Maximum size:</dt>
-            <dd>{numeral(journalInformation.journal_config.max_size).format('0,0 b')}</dd>
+            <dd>{NumberUtils.formatBytes(journalInformation.journal_config.max_size)}</dd>
             <dt>Maximum age:</dt>
             <dd>{moment.duration(journalInformation.journal_config.max_age).format('d [days] h [hours] m [minutes]')}</dd>
             <dt>Flush policy:</dt>
@@ -125,12 +126,12 @@ const JournalDetails = React.createClass({
           <h3>Utilization</h3>
 
           <ProgressBar now={metrics.utilizationRatio * 100}
-                       label={NumberUtils.formatPercentage(metrics.utilizationRatio)}/>
+                       label={NumberUtils.formatPercentage(metrics.utilizationRatio)} />
 
           {overcommittedWarning}
 
           <strong>{numeral(metrics.entriesUncommitted).format('0,0')} unprocessed messages</strong>
-          {' '}are currently in the journal, in {metrics.segments} segments.<br/>
+          {' '}are currently in the journal, in {metrics.segments} segments.<br />
           <strong>{numeral(metrics.append).format('0,0')} messages</strong>
           {' '}have been appended in the last second,{' '}
           <strong>{numeral(metrics.read).format('0,0')} messages</strong> have been read in the last second.

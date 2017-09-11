@@ -16,9 +16,11 @@
  */
 package org.graylog2.plugin;
 
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.io.BaseEncoding;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Doubles;
+import org.graylog2.shared.SuppressForbidden;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -28,8 +30,10 @@ import org.joda.time.format.DateTimeParser;
 import org.joda.time.format.ISODateTimeFormat;
 import org.slf4j.Logger;
 
+import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -39,17 +43,17 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.SortedSet;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
+import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
 /**
@@ -178,29 +182,53 @@ public final class Tools {
         return ret;
     }
 
+    /**
+     * Decompress ZLIB (RFC 1950) compressed data
+     *
+     * @param compressedData A byte array containing the ZLIB-compressed data.
+     * @return A string containing the decompressed data
+     */
+    public static String decompressZlib(byte[] compressedData) throws IOException {
+        return decompressZlib(compressedData, Long.MAX_VALUE);
+    }
 
     /**
      * Decompress ZLIB (RFC 1950) compressed data
      *
+     * @param compressedData A byte array containing the ZLIB-compressed data.
+     * @param maxBytes       The maximum number of uncompressed bytes to read.
      * @return A string containing the decompressed data
      */
-    public static String decompressZlib(byte[] compressedData) throws IOException {
+    public static String decompressZlib(byte[] compressedData, long maxBytes) throws IOException {
         try (final ByteArrayInputStream dataStream = new ByteArrayInputStream(compressedData);
-             final InflaterInputStream in = new InflaterInputStream(dataStream)) {
-            return new String(ByteStreams.toByteArray(in), StandardCharsets.UTF_8);
+             final InflaterInputStream in = new InflaterInputStream(dataStream);
+             final InputStream limited = ByteStreams.limit(in, maxBytes)) {
+            return new String(ByteStreams.toByteArray(limited), StandardCharsets.UTF_8);
         }
     }
 
     /**
      * Decompress GZIP (RFC 1952) compressed data
      *
+     * @param compressedData A byte array containing the GZIP-compressed data.
      * @return A string containing the decompressed data
      */
     public static String decompressGzip(byte[] compressedData) throws IOException {
-        try (final ByteArrayInputStream dataStream = new ByteArrayInputStream(compressedData);
-             final GZIPInputStream in = new GZIPInputStream(dataStream)) {
-            return new String(ByteStreams.toByteArray(in), StandardCharsets.UTF_8);
+        return decompressGzip(compressedData, Long.MAX_VALUE);
+    }
 
+    /**
+     * Decompress GZIP (RFC 1952) compressed data
+     *
+     * @param compressedData A byte array containing the GZIP-compressed data.
+     * @param maxBytes       The maximum number of uncompressed bytes to read.
+     * @return A string containing the decompressed data
+     */
+    public static String decompressGzip(byte[] compressedData, long maxBytes) throws IOException {
+        try (final ByteArrayInputStream dataStream = new ByteArrayInputStream(compressedData);
+             final GZIPInputStream in = new GZIPInputStream(dataStream);
+             final InputStream limited = ByteStreams.limit(in, maxBytes)) {
+            return new String(ByteStreams.toByteArray(limited), StandardCharsets.UTF_8);
         }
     }
 
@@ -230,6 +258,7 @@ public final class Tools {
         return timestamp / 1000.0;
     }
 
+    @SuppressForbidden("Deliberate invocation")
     public static String getLocalHostname() {
         InetAddress addr = null;
         try {
@@ -241,6 +270,7 @@ public final class Tools {
         return addr.getHostName();
     }
 
+    @SuppressForbidden("Deliberate invocation")
     public static String getLocalCanonicalHostname() {
         InetAddress addr = null;
         try {
@@ -264,6 +294,7 @@ public final class Tools {
         return new String(BaseEncoding.base64().decode(what), StandardCharsets.UTF_8);
     }
 
+    @SuppressForbidden("Deliberate invocation")
     public static String rdnsLookup(InetAddress socketAddress) throws UnknownHostException {
         return socketAddress.getCanonicalHostName();
     }
@@ -272,10 +303,8 @@ public final class Tools {
         return UUID.randomUUID().toString();
     }
 
-    public static <T extends Comparable<? super T>> List<T> asSortedList(Collection<T> c) {
-        List<T> list = new ArrayList<T>(c);
-        java.util.Collections.sort(list);
-        return list;
+    public static <T extends Comparable<? super T>> SortedSet<T> asSortedSet(Collection<T> c) {
+        return ImmutableSortedSet.copyOf(c);
     }
 
     public static String buildElasticSearchTimeFormat(DateTime timestamp) {
@@ -401,6 +430,18 @@ public final class Tools {
         return Doubles.tryParse(x.toString());
     }
 
+    public static Number getNumber(Object o, Number defaultValue) {
+        if (o instanceof Number) {
+            return (Number)o;
+        }
+
+        try {
+            return Double.valueOf(String.valueOf(o));
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
     /**
      * Try to get the primary {@link java.net.InetAddress} of the primary network interface with
      * fallback to the local loopback address (usually {@code 127.0.0.1} or {@code ::1}.
@@ -428,18 +469,31 @@ public final class Tools {
         return InetAddress.getLoopbackAddress();
     }
 
-    public static URI getUriWithPort(final URI uri, final int port) {
+    @Nullable
+    public static URI getUriWithPort(@Nullable final URI uri, final int port) {
         if (uri == null) {
             return null;
         }
 
         try {
             if (uri.getPort() == -1) {
+                final int realPort;
+                switch (uri.getScheme()) {
+                    case "http":
+                        realPort = 80;
+                        break;
+                    case "https":
+                        realPort = 443;
+                        break;
+                    default:
+                        realPort = port;
+                }
+
                 return new URI(
                         uri.getScheme(),
                         uri.getUserInfo(),
                         uri.getHost(),
-                        port,
+                        realPort,
                         uri.getPath(),
                         uri.getQuery(),
                         uri.getFragment());
@@ -451,7 +505,8 @@ public final class Tools {
         }
     }
 
-    public static URI getUriWithScheme(final URI uri, final String scheme) {
+    @Nullable
+    public static URI getUriWithScheme(@Nullable final URI uri, final String scheme) {
         if (uri == null) {
             return null;
         }
@@ -470,7 +525,8 @@ public final class Tools {
         }
     }
 
-    public static URI getUriWithDefaultPath(final URI uri, final String path) {
+    @Nullable
+    public static URI getUriWithDefaultPath(@Nullable final URI uri, final String path) {
         if (uri == null) {
             return null;
         }
@@ -487,6 +543,42 @@ public final class Tools {
         } catch (URISyntaxException e) {
             throw new RuntimeException("Could not parse URI.", e);
         }
+    }
+
+    @Nullable
+    public static URI uriWithTrailingSlash(@Nullable final URI uri) {
+        if (uri == null) {
+            return null;
+        }
+
+        final String path = firstNonNull(uri.getPath(), "/");
+        if(path.endsWith("/")) {
+            return uri;
+        } else {
+            try {
+                return new URI(
+                        uri.getScheme(),
+                        uri.getUserInfo(),
+                        uri.getHost(),
+                        uri.getPort(),
+                        path + "/",
+                        uri.getQuery(),
+                        uri.getFragment());
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("Could not parse URI.", e);
+            }
+        }
+    }
+
+    @Nullable
+    public static URI normalizeURI(@Nullable final URI uri, String scheme, int port, String path) {
+        return com.google.common.base.Optional.fromNullable(uri)
+                .transform(u -> getUriWithScheme(u, scheme))
+                .transform(u -> getUriWithPort(u, port))
+                .transform(u -> getUriWithDefaultPath(u, path))
+                .transform(Tools::uriWithTrailingSlash)
+                .transform(URI::normalize)
+                .orNull();
     }
 
     public static <T, E> T getKeyByValue(Map<T, E> map, E value) {

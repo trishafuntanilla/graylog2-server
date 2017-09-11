@@ -24,6 +24,8 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.inputs.Input;
 import org.graylog2.inputs.InputService;
 import org.graylog2.plugin.configuration.ConfigurationException;
@@ -102,7 +104,8 @@ public class InputsResource extends RestResource {
     @ApiOperation(value = "Get all inputs")
     public InputsList list() {
         final Set<InputSummary> inputs = inputService.all().stream()
-                .map(input -> getInputSummary(input))
+                .filter(input -> isPermitted(RestPermissions.INPUTS_READ, input.getId()))
+                .map(this::getInputSummary)
                 .collect(Collectors.toSet());
 
         return InputsList.create(inputs);
@@ -120,6 +123,7 @@ public class InputsResource extends RestResource {
             @ApiResponse(code = 400, message = "Type is exclusive and already has input running")
     })
     @RequiresPermissions(RestPermissions.INPUTS_CREATE)
+    @AuditEvent(type = AuditEventTypes.MESSAGE_INPUT_CREATE)
     public Response create(@ApiParam(name = "JSON body", required = true)
                            @Valid @NotNull InputCreateRequest lr) throws ValidationException {
         try {
@@ -151,6 +155,7 @@ public class InputsResource extends RestResource {
     @ApiResponses(value = {
             @ApiResponse(code = 404, message = "No such input on this node.")
     })
+    @AuditEvent(type = AuditEventTypes.MESSAGE_INPUT_DELETE)
     public void terminate(@ApiParam(name = "inputId", required = true) @PathParam("inputId") String inputId) throws org.graylog2.database.NotFoundException {
         final Input input = inputService.find(inputId);
         inputService.destroy(input);
@@ -167,6 +172,7 @@ public class InputsResource extends RestResource {
             @ApiResponse(code = 404, message = "No such input on this node."),
             @ApiResponse(code = 400, message = "Missing or invalid input configuration.")
     })
+    @AuditEvent(type = AuditEventTypes.MESSAGE_INPUT_UPDATE)
     public Response update(@ApiParam(name = "JSON body", required = true) @Valid @NotNull InputCreateRequest lr,
                            @ApiParam(name = "inputId", required = true) @PathParam("inputId") String inputId) throws org.graylog2.database.NotFoundException, NoSuchInputTypeException, ConfigurationException, ValidationException {
         checkPermission(RestPermissions.INPUTS_EDIT, inputId);
@@ -181,7 +187,7 @@ public class InputsResource extends RestResource {
         mergedInput.putAll(messageInput.asMap());
 
         final Input newInput = inputService.create(input.getId(), mergedInput);
-        inputService.save(newInput);
+        inputService.update(newInput);
 
         final URI inputUri = getUriBuilderToSelf().path(InputsResource.class)
                 .path("{inputId}")

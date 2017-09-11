@@ -10,7 +10,7 @@ const MetricsExtractor = {
     }
 
     const metrics = {};
-    Object.keys(metricNames).forEach(metricShortName => {
+    Object.keys(metricNames).forEach((metricShortName) => {
       const metricFullName = metricNames[metricShortName];
       const metricObject = nodeMetrics[metricFullName];
       if (metricObject) {
@@ -18,6 +18,10 @@ const MetricsExtractor = {
           metrics[metricShortName] = metricObject.metric.value;
         } else if (metricObject.type === 'counter') {
           metrics[metricShortName] = metricObject.metric.count;
+        } else if (metricObject.type === 'meter') {
+          metrics[metricShortName] = metricObject.metric.rate.total;
+        } else if (metricObject.type === 'timer') {
+          metrics[metricShortName] = metricObject.metric.rate.total;
         } else {
           metrics[metricShortName] = null;
         }

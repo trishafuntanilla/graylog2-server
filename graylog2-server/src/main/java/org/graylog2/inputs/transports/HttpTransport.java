@@ -54,6 +54,8 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.codec.http.HttpVersion;
+import org.jboss.netty.handler.timeout.ReadTimeoutHandler;
+import org.jboss.netty.util.HashedWheelTimer;
 
 import javax.inject.Named;
 import java.util.LinkedHashMap;
@@ -61,6 +63,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import static com.codahale.metrics.MetricRegistry.name;
 import static org.jboss.netty.channel.Channels.fireMessageReceived;
@@ -70,23 +73,29 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.ACCEPTED;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 
 public class HttpTransport extends AbstractTcpTransport {
     static final int DEFAULT_MAX_INITIAL_LINE_LENGTH = 4096;
     static final int DEFAULT_MAX_HEADER_SIZE = 8192;
     static final int DEFAULT_MAX_CHUNK_SIZE = (int) Size.kilobytes(64L).toBytes();
+    static final int DEFAULT_IDLE_WRITER_TIMEOUT = 60;
 
     static final String CK_ENABLE_CORS = "enable_cors";
     static final String CK_MAX_CHUNK_SIZE = "max_chunk_size";
+    static final String CK_IDLE_WRITER_TIMEOUT = "idle_writer_timeout";
 
     private final boolean enableCors;
+    private final HashedWheelTimer timer;
     private final int maxChunkSize;
+    private final int idleWriterTimeout;
 
     @AssistedInject
     public HttpTransport(@Assisted Configuration configuration,
                          @Named("bossPool") Executor bossPool,
                          ThroughputCounter throughputCounter,
                          ConnectionCounter connectionCounter,
+                         HashedWheelTimer timer,
                          LocalMetricRegistry localRegistry) {
         super(configuration,
               throughputCounter,
@@ -97,8 +106,10 @@ public class HttpTransport extends AbstractTcpTransport {
 
         enableCors = configuration.getBoolean(CK_ENABLE_CORS);
 
+        this.timer = timer;
         int maxChunkSize = configuration.intIsSet(CK_MAX_CHUNK_SIZE) ? configuration.getInt(CK_MAX_CHUNK_SIZE) : DEFAULT_MAX_CHUNK_SIZE;
         this.maxChunkSize = maxChunkSize <= 0 ? DEFAULT_MAX_CHUNK_SIZE : maxChunkSize;
+        this.idleWriterTimeout = configuration.intIsSet(CK_IDLE_WRITER_TIMEOUT) ? configuration.getInt(CK_IDLE_WRITER_TIMEOUT, DEFAULT_IDLE_WRITER_TIMEOUT) : DEFAULT_IDLE_WRITER_TIMEOUT;
     }
 
     private static Executor executorService(final String executorName, final String threadNameFormat, final MetricRegistry metricRegistry) {
@@ -114,30 +125,18 @@ public class HttpTransport extends AbstractTcpTransport {
         final LinkedHashMap<String, Callable<? extends ChannelHandler>> baseChannelHandlers =
                 super.getBaseChannelHandlers(input);
 
-        baseChannelHandlers.put("decoder", new Callable<ChannelHandler>() {
-            @Override
-            public ChannelHandler call() throws Exception {
-                return new HttpRequestDecoder(DEFAULT_MAX_INITIAL_LINE_LENGTH, DEFAULT_MAX_HEADER_SIZE, maxChunkSize);
-            }
-        });
-        baseChannelHandlers.put("aggregator", new Callable<ChannelHandler>() {
-            @Override
-            public ChannelHandler call() throws Exception {
-                return new HttpChunkAggregator(maxChunkSize);
-            }
-        });
-        baseChannelHandlers.put("encoder", new Callable<ChannelHandler>() {
-            @Override
-            public ChannelHandler call() throws Exception {
-                return new HttpResponseEncoder();
-            }
-        });
-        baseChannelHandlers.put("decompressor", new Callable<ChannelHandler>() {
-            @Override
-            public ChannelHandler call() throws Exception {
-                return new HttpContentDecompressor();
-            }
-        });
+        if (idleWriterTimeout > 0) {
+            // Install read timeout handler to close idle connections after a timeout.
+            // This avoids dangling HTTP connections when the HTTP client does not close the connection properly.
+            // For details see: https://github.com/Graylog2/graylog2-server/issues/3223#issuecomment-270350500
+
+            baseChannelHandlers.put("read-timeout-handler", () -> new ReadTimeoutHandler(timer, idleWriterTimeout, TimeUnit.SECONDS));
+        }
+
+        baseChannelHandlers.put("decoder", () -> new HttpRequestDecoder(DEFAULT_MAX_INITIAL_LINE_LENGTH, DEFAULT_MAX_HEADER_SIZE, maxChunkSize));
+        baseChannelHandlers.put("aggregator", () -> new HttpChunkAggregator(maxChunkSize));
+        baseChannelHandlers.put("encoder", HttpResponseEncoder::new);
+        baseChannelHandlers.put("decompressor", HttpContentDecompressor::new);
 
         return baseChannelHandlers;
     }
@@ -146,12 +145,7 @@ public class HttpTransport extends AbstractTcpTransport {
     protected LinkedHashMap<String, Callable<? extends ChannelHandler>> getFinalChannelHandlers(MessageInput input) {
         final LinkedHashMap<String, Callable<? extends ChannelHandler>> handlers = Maps.newLinkedHashMap();
 
-        handlers.put("http-handler", new Callable<ChannelHandler>() {
-            @Override
-            public ChannelHandler call() throws Exception {
-                return new Handler(enableCors);
-            }
-        });
+        handlers.put("http-handler", () -> new Handler(enableCors));
 
         handlers.putAll(super.getFinalChannelHandlers(input));
         return handlers;
@@ -180,6 +174,12 @@ public class HttpTransport extends AbstractTcpTransport {
                                         DEFAULT_MAX_CHUNK_SIZE,
                                         "The maximum HTTP chunk size in bytes (e. g. length of HTTP request body)",
                                         ConfigurationField.Optional.OPTIONAL));
+            r.addField(new NumberField(CK_IDLE_WRITER_TIMEOUT,
+                                        "Idle writer timeout",
+                                        DEFAULT_IDLE_WRITER_TIMEOUT,
+                                        "The server closes the connection after the given time in seconds after the last client write request. (use 0 to disable)",
+                                        ConfigurationField.Optional.OPTIONAL,
+                                        NumberField.Attribute.ONLY_POSITIVE));
             return r;
         }
     }
@@ -200,19 +200,24 @@ public class HttpTransport extends AbstractTcpTransport {
             final String origin = request.headers().get(Names.ORIGIN);
 
             // to allow for future changes, let's be at least a little strict in what we accept here.
-            if (request.getMethod() != HttpMethod.POST) {
+            if (HttpMethod.OPTIONS.equals(request.getMethod())) {
+                writeResponse(channel, keepAlive, httpRequestVersion, OK, origin);
+                return;
+            } else if (!HttpMethod.POST.equals(request.getMethod())) {
                 writeResponse(channel, keepAlive, httpRequestVersion, METHOD_NOT_ALLOWED, origin);
                 return;
             }
 
             final ChannelBuffer buffer = request.getContent();
 
-            if ("/gelf".equals(request.getUri())) {
+            final boolean correctPath = "/gelf".equals(request.getUri());
+
+            if (!correctPath) {
+                writeResponse(channel, keepAlive, httpRequestVersion, NOT_FOUND, origin);
+            } else {
                 // send on to raw message handler
                 writeResponse(channel, keepAlive, httpRequestVersion, ACCEPTED, origin);
                 fireMessageReceived(ctx, buffer);
-            } else {
-                writeResponse(channel, keepAlive, httpRequestVersion, NOT_FOUND, origin);
             }
         }
 
@@ -228,12 +233,10 @@ public class HttpTransport extends AbstractTcpTransport {
             response.headers().set(Names.CONNECTION,
                                    keepAlive ? Values.KEEP_ALIVE : Values.CLOSE);
 
-            if (enableCors) {
-                if (origin != null && !origin.isEmpty()) {
-                    response.headers().set(Names.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-                    response.headers().set(Names.ACCESS_CONTROL_ALLOW_CREDENTIALS, true);
-                    response.headers().set(Names.ACCESS_CONTROL_ALLOW_HEADERS, "Authorization");
-                }
+            if (enableCors && origin != null && !origin.isEmpty()) {
+                response.headers().set(Names.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                response.headers().set(Names.ACCESS_CONTROL_ALLOW_CREDENTIALS, true);
+                response.headers().set(Names.ACCESS_CONTROL_ALLOW_HEADERS, "Authorization, Content-Type");
             }
 
             final ChannelFuture channelFuture = channel.write(response);
@@ -242,5 +245,4 @@ public class HttpTransport extends AbstractTcpTransport {
             }
         }
     }
-
 }

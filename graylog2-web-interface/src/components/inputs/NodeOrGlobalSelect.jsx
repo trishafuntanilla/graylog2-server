@@ -1,6 +1,7 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
-import { Input } from 'react-bootstrap';
+import { Input } from 'components/bootstrap';
 
 import StoreProvider from 'injection/StoreProvider';
 const NodesStore = StoreProvider.getStore('Nodes');
@@ -9,9 +10,9 @@ import { Spinner } from 'components/common';
 
 const NodeOrGlobalSelect = React.createClass({
   propTypes: {
-    global: React.PropTypes.bool,
-    onChange: React.PropTypes.func.isRequired,
-    node: React.PropTypes.string,
+    global: PropTypes.bool,
+    onChange: PropTypes.func.isRequired,
+    node: PropTypes.string,
   },
   mixins: [Reflux.connect(NodesStore)],
   getInitialState() {
@@ -22,9 +23,9 @@ const NodeOrGlobalSelect = React.createClass({
   },
   _onChangeGlobal(evt) {
     const global = evt.target.checked;
-    this.setState({global: global});
+    this.setState({ global: global });
     if (global) {
-      this.setState({node: 'placeholder'});
+      this.setState({ node: 'placeholder' });
       this.props.onChange('node', undefined);
     } else {
       this.props.onChange('node', this.state.node);
@@ -32,7 +33,7 @@ const NodeOrGlobalSelect = React.createClass({
     this.props.onChange('global', global);
   },
   _onChangeNode(evt) {
-    this.setState({node: evt.target.value});
+    this.setState({ node: evt.target.value });
     this.props.onChange('node', evt.target.value);
   },
   render() {
@@ -41,7 +42,7 @@ const NodeOrGlobalSelect = React.createClass({
     }
 
     const options = Object.keys(this.state.nodes)
-      .map(nodeId => {
+      .map((nodeId) => {
         return <option key={nodeId} value={nodeId}>{this.state.nodes[nodeId].short_node_id} / {this.state.nodes[nodeId].hostname}</option>;
       });
 

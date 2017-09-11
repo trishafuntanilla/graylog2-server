@@ -23,16 +23,18 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.database.NotFoundException;
-import org.graylog2.plugin.database.ValidationException;
 import org.graylog2.inputs.Input;
 import org.graylog2.inputs.InputService;
 import org.graylog2.plugin.Message;
+import org.graylog2.plugin.database.ValidationException;
 import org.graylog2.plugin.inputs.MessageInput;
-import org.graylog2.shared.rest.resources.RestResource;
 import org.graylog2.rest.models.system.inputs.requests.CreateStaticFieldRequest;
+import org.graylog2.shared.inputs.PersistedInputs;
+import org.graylog2.shared.rest.resources.RestResource;
 import org.graylog2.shared.security.RestPermissions;
-import org.graylog2.shared.inputs.InputRegistry;
 import org.graylog2.shared.system.activities.Activity;
 import org.graylog2.shared.system.activities.ActivityWriter;
 import org.slf4j.Logger;
@@ -64,7 +66,7 @@ public class StaticFieldsResource extends RestResource {
     @Inject
     private ActivityWriter activityWriter;
     @Inject
-    private InputRegistry inputs;
+    private PersistedInputs persistedInputs;
 
     @POST
     @Timed
@@ -76,17 +78,19 @@ public class StaticFieldsResource extends RestResource {
             @ApiResponse(code = 400, message = "Field/Key is reserved."),
             @ApiResponse(code = 400, message = "Missing or invalid configuration.")
     })
+    @AuditEvent(type = AuditEventTypes.STATIC_FIELD_CREATE)
     public Response create(@ApiParam(name = "inputId", required = true)
                            @PathParam("inputId") String inputId,
                            @ApiParam(name = "JSON body", required = true)
                            @Valid @NotNull CreateStaticFieldRequest csfr) throws NotFoundException, ValidationException {
         checkPermission(RestPermissions.INPUTS_EDIT, inputId);
 
-        final MessageInput input = inputs.getRunningInput(inputId);
+        final MessageInput input = persistedInputs.get(inputId);
 
         if (input == null) {
-            LOG.error("Input <{}> not found.", inputId);
-            throw new javax.ws.rs.NotFoundException();
+            final String msg = "Input <" + inputId + "> not found.";
+            LOG.error(msg);
+            throw new javax.ws.rs.NotFoundException(msg);
         }
 
         // Check if key is a valid message key.
@@ -128,22 +132,25 @@ public class StaticFieldsResource extends RestResource {
             @ApiResponse(code = 404, message = "No such static field.")
     })
     @Path("/{key}")
+    @AuditEvent(type = AuditEventTypes.STATIC_FIELD_DELETE)
     public void delete(@ApiParam(name = "Key", required = true)
                        @PathParam("key") String key,
                        @ApiParam(name = "inputId", required = true)
                        @PathParam("inputId") String inputId) throws NotFoundException {
         checkPermission(RestPermissions.INPUTS_EDIT, inputId);
 
-        MessageInput input = inputs.getRunningInput(inputId);
+        MessageInput input = persistedInputs.get(inputId);
 
         if (input == null) {
-            LOG.error("Input <{}> not found.", inputId);
-            throw new javax.ws.rs.NotFoundException();
+            final String msg = "Input <" + inputId + "> not found.";
+            LOG.error(msg);
+            throw new javax.ws.rs.NotFoundException(msg);
         }
 
         if (!input.getStaticFields().containsKey(key)) {
-            LOG.error("No such static field [{}] on input <{}>.", key, inputId);
-            throw new javax.ws.rs.NotFoundException();
+            final String msg = "No such static field [" + key + "] on input <" + inputId + ">.";
+            LOG.error(msg);
+            throw new javax.ws.rs.NotFoundException(msg);
         }
 
         input.getStaticFields().remove(key);

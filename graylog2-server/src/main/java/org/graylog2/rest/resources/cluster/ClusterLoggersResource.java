@@ -23,6 +23,7 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.cluster.Node;
 import org.graylog2.cluster.NodeNotFoundException;
 import org.graylog2.cluster.NodeService;
@@ -34,6 +35,7 @@ import org.graylog2.shared.rest.resources.ProxiedResource;
 import org.hibernate.validator.constraints.NotEmpty;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
@@ -45,6 +47,7 @@ import javax.ws.rs.core.MediaType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 
 @RequiresAuthentication
 @Api(value = "Cluster/System/Loggers", description = "Cluster-wide access to internal Graylog loggers")
@@ -53,8 +56,9 @@ public class ClusterLoggersResource extends ProxiedResource {
     @Inject
     public ClusterLoggersResource(NodeService nodeService,
                                     RemoteInterfaceProvider remoteInterfaceProvider,
-                                    @Context HttpHeaders httpHeaders) throws NodeNotFoundException {
-        super(httpHeaders, nodeService, remoteInterfaceProvider);
+                                    @Context HttpHeaders httpHeaders,
+                                    @Named("proxiedRequestsExecutorService") ExecutorService executorService) throws NodeNotFoundException {
+        super(httpHeaders, nodeService, remoteInterfaceProvider, executorService);
     }
 
     @GET
@@ -82,6 +86,7 @@ public class ClusterLoggersResource extends ProxiedResource {
     @ApiResponses(value = {
         @ApiResponse(code = 404, message = "No such subsystem.")
     })
+    @NoAuditEvent("proxy resource, audit event will be emitted on target nodes")
     public void setSubsystemLoggerLevel(
         @ApiParam(name = "nodeId", required = true) @PathParam("nodeId") @NotEmpty String nodeId,
         @ApiParam(name = "subsystem", required = true) @PathParam("subsystem") @NotEmpty String subsystemTitle,

@@ -60,12 +60,13 @@ public class SavedSearchImpl extends PersistedImpl implements SavedSearch {
         return Collections.emptyMap();
     }
 
+    @Override
     public Map<String, Object> asMap() {
         return ImmutableMap.<String, Object>builder()
                 .put("id", ((ObjectId) fields.get("_id")).toHexString())
                 .put(FIELD_TITLE, fields.get(FIELD_TITLE))
                 .put(FIELD_QUERY, fields.get(FIELD_QUERY))
-                .put(FIELD_CREATED_AT, (Tools.getISO8601String((DateTime) fields.get(FIELD_CREATED_AT))))
+                .put(FIELD_CREATED_AT, Tools.getISO8601String((DateTime) fields.get(FIELD_CREATED_AT)))
                 .put(FIELD_CREATOR_USER_ID, fields.get(FIELD_CREATOR_USER_ID))
                 .build();
     }

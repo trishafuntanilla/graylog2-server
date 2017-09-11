@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react';
-import { Input } from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Input } from 'components/bootstrap';
 
 import { WidgetEditConfigModal } from 'components/widgets';
 
@@ -31,7 +32,7 @@ const StackedChartWidgetConfiguration = React.createClass({
     this.props.config.series.forEach((series) => {
       const seriesNo = this.props.config.series.indexOf(series);
       controls.push(
-        <fieldset key={'series' + seriesNo}>
+        <fieldset key={`series${seriesNo}`}>
           <legend>Series #{seriesNo + 1}</legend>
           <Input type="text"
                  id={`series-${seriesNo}-field`}
@@ -41,7 +42,7 @@ const StackedChartWidgetConfiguration = React.createClass({
                  defaultValue={series.field}
                  onChange={this._bindSeriesValue}
                  help="Field used to get the series value."
-                 required/>
+                 required />
           <Input type="text"
                  id={`series-${seriesNo}-query`}
                  name="query"
@@ -49,7 +50,7 @@ const StackedChartWidgetConfiguration = React.createClass({
                  data-series={seriesNo}
                  defaultValue={series.query}
                  onChange={this._bindSeriesValue}
-                 help="Search query that will be executed to get the series value."/>
+                 help="Search query that will be executed to get the series value." />
           <Input type="select"
                  id={`series-${seriesNo}-statistical-function`}
                  name="statistical_function"
@@ -66,7 +67,7 @@ const StackedChartWidgetConfiguration = React.createClass({
               );
             })}
           </Input>
-        </fieldset>
+        </fieldset>,
       );
     }, this);
 

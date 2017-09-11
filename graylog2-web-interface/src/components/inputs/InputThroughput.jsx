@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
 import numeral from 'numeral';
@@ -8,11 +9,12 @@ const MetricsStore = StoreProvider.getStore('Metrics');
 import ActionsProvider from 'injection/ActionsProvider';
 const MetricsActions = ActionsProvider.getActions('Metrics');
 
+import NumberUtils from 'util/NumberUtils';
 import { LinkToNode, Spinner } from 'components/common';
 
 const InputThroughput = React.createClass({
   propTypes: {
-    input: React.PropTypes.object.isRequired,
+    input: PropTypes.object.isRequired,
   },
   mixins: [Reflux.connect(MetricsStore)],
   getInitialState() {
@@ -40,7 +42,7 @@ const InputThroughput = React.createClass({
   },
   _prefix(metric) {
     const input = this.props.input;
-    return input.type + '.' + input.id + '.' + metric;
+    return `${input.type}.${input.id}.${metric}`;
   },
   _getValueFromMetric(metric) {
     if (metric === null || metric === undefined) {
@@ -60,7 +62,7 @@ const InputThroughput = React.createClass({
   },
   _calculateMetrics(metrics) {
     const result = {};
-    this._metricNames().forEach(metricName => {
+    this._metricNames().forEach((metricName) => {
       result[metricName] = Object.keys(metrics).reduce((previous, nodeId) => {
         if (!metrics[nodeId][metricName]) {
           return previous;
@@ -78,38 +80,30 @@ const InputThroughput = React.createClass({
   _formatCount(count) {
     return numeral(count).format('0,0');
   },
-  _formatBytes(bytes) {
-    return numeral(bytes).format('0.0b');
-  },
   _formatNetworkStats(writtenBytes1Sec, writtenBytesTotal, readBytes1Sec, readBytesTotal) {
-    // ugh, is there a way of not doing it globally?
-    numeral.zeroFormat('0B');
-
     const network = (
       <span className="input-io">
         <span>Network IO: </span>
         <span className="persec">
-          <i className="fa fa-caret-down channel-direction channel-direction-down"/>
-          <span className="rx value">{this._formatBytes(readBytes1Sec)} </span>
+          <i className="fa fa-caret-down channel-direction channel-direction-down" />
+          <span className="rx value">{NumberUtils.formatBytes(readBytes1Sec)} </span>
 
-          <i className="fa fa-caret-up channel-direction channel-direction-up"/>
-          <span className="tx value">{this._formatBytes(writtenBytes1Sec)}</span>
+          <i className="fa fa-caret-up channel-direction channel-direction-up" />
+          <span className="tx value">{NumberUtils.formatBytes(writtenBytes1Sec)}</span>
         </span>
 
         <span className="total">
           <span> (total: </span>
-          <i className="fa fa-caret-down channel-direction channel-direction-down"/>
-          <span className="rx value">{this._formatBytes(readBytesTotal)} </span>
+          <i className="fa fa-caret-down channel-direction channel-direction-down" />
+          <span className="rx value">{NumberUtils.formatBytes(readBytesTotal)} </span>
 
-          <i className="fa fa-caret-up channel-direction channel-direction-up"/>
-          <span className="tx value">{this._formatBytes(writtenBytesTotal)}</span>
+          <i className="fa fa-caret-up channel-direction channel-direction-up" />
+          <span className="tx value">{NumberUtils.formatBytes(writtenBytesTotal)}</span>
           <span> )</span>
         </span>
         <br />
       </span>
     );
-    // wow this sucks
-    numeral.zeroFormat(null);
 
     return network;
   },
@@ -125,7 +119,7 @@ const InputThroughput = React.createClass({
   _formatAllNodeDetails(metrics) {
     return (
       <span>
-        <hr key="separator"/>
+        <hr key="separator" />
         {Object.keys(metrics).map(nodeId => this._formatNodeDetails(nodeId, metrics[nodeId]))}
       </span>
     );
@@ -143,18 +137,18 @@ const InputThroughput = React.createClass({
     return (
       <span key={this.props.input.id + nodeId}>
         <LinkToNode nodeId={nodeId} />
-        <br/>
+        <br />
         {!isNaN(writtenBytes1Sec) && this._formatNetworkStats(writtenBytes1Sec, writtenBytesTotal, readBytes1Sec, readBytesTotal)}
         {!isNaN(openConnections) && this._formatConnections(openConnections, totalConnections)}
-        {!isNaN(emptyMessages) && <span>Empty messages discarded: {this._formatCount(emptyMessages)}<br/></span>}
+        {!isNaN(emptyMessages) && <span>Empty messages discarded: {this._formatCount(emptyMessages)}<br /></span>}
         {isNaN(writtenBytes1Sec) && isNaN(openConnections) && <span>No metrics available for this node</span>}
-        <br/>
+        <br />
       </span>
     );
   },
   _toggleShowDetails(evt) {
     evt.preventDefault();
-    this.setState({showDetails: !this.state.showDetails});
+    this.setState({ showDetails: !this.state.showDetails });
   },
   render() {
     if (!this.state.metrics) {
@@ -174,10 +168,10 @@ const InputThroughput = React.createClass({
         <h3>Throughput / Metrics</h3>
         <span>
           {isNaN(incomingMessages) && isNaN(writtenBytes1Sec) && isNaN(openConnections) && <i>No metrics available for this input</i>}
-          {!isNaN(incomingMessages) && <span>1 minute average rate: {this._formatCount(incomingMessages)} msg/s<br/></span>}
+          {!isNaN(incomingMessages) && <span>1 minute average rate: {this._formatCount(incomingMessages)} msg/s<br /></span>}
           {!isNaN(writtenBytes1Sec) && this._formatNetworkStats(writtenBytes1Sec, writtenBytesTotal, readBytes1Sec, readBytesTotal)}
           {!isNaN(openConnections) && this._formatConnections(openConnections, totalConnections)}
-          {!isNaN(emptyMessages) && <span>Empty messages discarded: {this._formatCount(emptyMessages)}<br/></span>}
+          {!isNaN(emptyMessages) && <span>Empty messages discarded: {this._formatCount(emptyMessages)}<br /></span>}
           {!isNaN(writtenBytes1Sec) && this.props.input.global && <a href="" onClick={this._toggleShowDetails}>{this.state.showDetails ? 'Hide' : 'Show'} details</a>}
           {!isNaN(writtenBytes1Sec) && this.state.showDetails && this._formatAllNodeDetails(this.state.metrics)}
         </span>

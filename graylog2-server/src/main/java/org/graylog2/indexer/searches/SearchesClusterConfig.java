@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.graylog.autovalue.WithBeanGetter;
 import org.joda.time.Period;
 
 import java.util.Map;
@@ -29,6 +30,7 @@ import java.util.Set;
 
 @JsonAutoDetect
 @AutoValue
+@WithBeanGetter
 public abstract class SearchesClusterConfig {
     private static final Period DEFAULT_QUERY_TIME_RANGE_LIMIT = Period.ZERO;
     private static final Map<Period, String> DEFAULT_RELATIVE_TIMERANGE_OPTIONS = ImmutableMap.<Period, String>builder()

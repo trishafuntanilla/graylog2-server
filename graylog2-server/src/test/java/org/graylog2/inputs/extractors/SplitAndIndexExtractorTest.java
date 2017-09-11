@@ -16,25 +16,19 @@
  */
 package org.graylog2.inputs.extractors;
 
-import com.google.common.collect.Lists;
 import org.graylog2.ConfigurationException;
 import org.graylog2.plugin.Message;
 import org.graylog2.plugin.Tools;
-import org.graylog2.plugin.inputs.Converter;
 import org.graylog2.plugin.inputs.Extractor;
 import org.junit.Test;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-/**
- * @author Lennart Koopmann <lennart@torch.sh>
- */
 public class SplitAndIndexExtractorTest extends AbstractExtractorTest {
     @Test
     public void testBasicExtraction() throws Exception {
@@ -87,6 +81,7 @@ public class SplitAndIndexExtractorTest extends AbstractExtractorTest {
 
         assertEquals("short", msg.getField("message"));
     }
+
     @Test
     public void testBasicExtractionWithCutStrategyAtEndOfString() throws Exception {
         Message msg = new Message("The short message", "TestUnit", Tools.nowUTC());
@@ -196,7 +191,7 @@ public class SplitAndIndexExtractorTest extends AbstractExtractorTest {
     }
 
     @Test(expected = ConfigurationException.class)
-         public void testDoesNotInitializeOnNullTargetIndex() throws Exception {
+    public void testDoesNotInitializeOnNullTargetIndex() throws Exception {
         new SplitAndIndexExtractor(metricRegistry, "foo", "foo", 0, Extractor.CursorStrategy.CUT, "somefield", "somefield", config("x", null), "foo", noConverters(), Extractor.ConditionType.NONE, null);
     }
 
@@ -308,14 +303,9 @@ public class SplitAndIndexExtractorTest extends AbstractExtractorTest {
     }
 
     public static Map<String, Object> config(final Object splitChar, final Object targetIndex) {
-        return new HashMap<String, Object>() {{
-            put("index", targetIndex);
-            put("split_by", splitChar);
-        }};
+        final HashMap<String, Object> map = new HashMap<>();
+        map.put("index", targetIndex);
+        map.put("split_by", splitChar);
+        return map;
     }
-
-    public static List<Converter> noConverters() {
-        return Lists.newArrayList();
-    }
-
 }

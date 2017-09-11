@@ -1,10 +1,14 @@
-import React, {PropTypes} from 'react';
-import {Alert} from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Alert } from 'react-bootstrap';
 
 const EntityList = React.createClass({
   propTypes: {
-    bsNoItemsStyle: PropTypes.oneOf(['info', 'warning']),
-    noItemsText: PropTypes.string,
+    bsNoItemsStyle: PropTypes.oneOf(['info', 'success', 'warning']),
+    noItemsText: PropTypes.oneOfType([
+      PropTypes.string,
+      PropTypes.element,
+    ]),
     items: PropTypes.array.isRequired,
   },
   getDefaultProps() {
@@ -17,7 +21,7 @@ const EntityList = React.createClass({
     if (this.props.items.length === 0) {
       return (
         <Alert bsStyle={this.props.bsNoItemsStyle}>
-          <i className="fa fa-info-circle"></i>&nbsp;
+          <i className="fa fa-info-circle" />&nbsp;
           {this.props.noItemsText}
         </Alert>
       );

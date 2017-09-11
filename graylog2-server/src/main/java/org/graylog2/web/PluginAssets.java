@@ -22,6 +22,7 @@ import org.graylog2.shared.plugins.PluginLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,14 +34,16 @@ import java.util.stream.Collectors;
 public class PluginAssets {
     private static final Logger LOG = LoggerFactory.getLogger(PluginAssets.class);
 
-    public static String pathPrefix = "web-interface/assets";
-    private static String pluginPathPrefix = "/plugin/";
-    private static String manifestFilename = "module.json";
+    public static final String pathPrefix = "web-interface/assets";
+    private static final String pluginPathPrefix = "plugin/";
+    private static final String manifestFilename = "module.json";
+    private static final String vendorManifestFilename = "vendor-module.json";
 
     private final ObjectMapper objectMapper;
     private final List<String> jsFiles;
     private final List<String> cssFiles;
     private final String polyfillJsFile;
+    private final List<String> vendorJsFiles;
 
     @Inject
     public PluginAssets(Set<Plugin> plugins,
@@ -49,7 +52,22 @@ public class PluginAssets {
         this.jsFiles = new ArrayList<>();
         this.cssFiles = new ArrayList<>();
 
-        plugins.stream().forEach(plugin -> {
+        final InputStream vendorManifestStream = this.getClass().getResourceAsStream("/" + pathPrefix + "/" + vendorManifestFilename);
+        if (vendorManifestStream != null) {
+            final ModuleManifest vendorManifest;
+            try {
+                vendorManifest = objectMapper.readValue(vendorManifestStream, ModuleManifest.class);
+            } catch (IOException e) {
+                throw new RuntimeException("Unable to read vendor manifest: ", e);
+            }
+            this.vendorJsFiles = vendorManifest.files().jsFiles();
+            jsFiles.addAll(vendorManifest.files().jsFiles());
+            cssFiles.addAll(vendorManifest.files().cssFiles());
+        } else {
+            throw new IllegalStateException("Unable to find vendor assets. Maybe the web interface was not built into server?");
+        }
+
+        plugins.forEach(plugin -> {
             final ModuleManifest pluginManifest = manifestForPlugin(plugin);
             final String pathPrefix = pluginPathPrefix + plugin.metadata().getUniqueId() + "/";
             if (pluginManifest != null) {
@@ -57,11 +75,12 @@ public class PluginAssets {
                 cssFiles.addAll(prefixFileNames(pluginManifest.files().cssFiles(), pathPrefix));
             }
         });
-        final InputStream packageManifest = this.getClass().getResourceAsStream("/" + pathPrefix + "/" + manifestFilename);
-        if (packageManifest != null) {
+
+        final InputStream packageManifestStream = this.getClass().getResourceAsStream("/" + pathPrefix + "/" + manifestFilename);
+        if (packageManifestStream != null) {
             final ModuleManifest manifest;
             try {
-                manifest = objectMapper.readValue(packageManifest, ModuleManifest.class);
+                manifest = objectMapper.readValue(packageManifestStream, ModuleManifest.class);
             } catch (IOException e) {
                 throw new RuntimeException("Unable to read web interface manifest: ", e);
             }
@@ -73,15 +92,22 @@ public class PluginAssets {
         }
     }
 
-    public List<String> jsFiles() {
+    private List<String> jsFiles() {
         return jsFiles;
     }
 
     // Sort JS files in the intended load order, so templates don't need to care about it.
-    public List<String> sortedJsFiles() {
-        List<String> sortedJsFiles = jsFiles().stream()
+    List<String> sortedJsFiles() {
+        return jsFiles().stream()
                 .sorted((file1, file2) -> {
-                    // Polyfill JS script goes first
+                    // Vendor JS scripts go first
+                    if (vendorJsFiles.contains(file1)) {
+                        return -1;
+                    }
+                    if (vendorJsFiles.contains(file2)) {
+                        return 1;
+                    }
+                    // Polyfill JS script goes second
                     if (file1.equals(polyfillJsFile)) {
                         return -1;
                     }
@@ -94,10 +120,9 @@ public class PluginAssets {
                     return file2.compareTo(file1);
                 })
                 .collect(Collectors.toList());
-        return sortedJsFiles;
     }
 
-    public List<String> cssFiles() {
+    List<String> cssFiles() {
         return cssFiles;
     }
 
@@ -105,6 +130,7 @@ public class PluginAssets {
         return filenames.stream().map(file -> file.startsWith(pathPrefix) ? file : pathPrefix + file).collect(Collectors.toList());
     }
 
+    @Nullable
     private ModuleManifest manifestForPlugin(Plugin plugin) {
         if (!(plugin instanceof PluginLoader.PluginAdapter)) {
             LOG.warn("Unable to read web manifest from plugin " + plugin + ": Plugin is not an instance of PluginAdapter.");
@@ -115,8 +141,7 @@ public class PluginAssets {
         final InputStream manifestStream = plugin.metadata().getClass().getResourceAsStream("/plugin." + pluginClassName + "." + manifestFilename);
         if (manifestStream != null) {
             try {
-                final ModuleManifest manifest = objectMapper.readValue(manifestStream, ModuleManifest.class);
-                return manifest;
+                return objectMapper.readValue(manifestStream, ModuleManifest.class);
             } catch (IOException e) {
                 LOG.warn("Unable to read web manifest from plugin " + plugin + ": ", e);
             }

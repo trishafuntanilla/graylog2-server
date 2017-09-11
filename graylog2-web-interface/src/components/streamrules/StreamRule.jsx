@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 
 import PermissionsMixin from 'util/PermissionsMixin';
@@ -11,13 +12,13 @@ import UserNotification from 'util/UserNotification';
 
 const StreamRule = React.createClass({
   propTypes: {
-    matchData: React.PropTypes.array,
-    onDelete: React.PropTypes.func,
-    onSubmit: React.PropTypes.func,
-    permissions: React.PropTypes.array.isRequired,
-    stream: React.PropTypes.object.isRequired,
-    streamRule: React.PropTypes.object.isRequired,
-    streamRuleTypes: React.PropTypes.array.isRequired,
+    matchData: PropTypes.array,
+    onDelete: PropTypes.func,
+    onSubmit: PropTypes.func,
+    permissions: PropTypes.array.isRequired,
+    stream: PropTypes.object.isRequired,
+    streamRule: PropTypes.object.isRequired,
+    streamRuleTypes: PropTypes.array.isRequired,
   },
   mixins: [PermissionsMixin],
   _onEdit(event) {
@@ -47,10 +48,10 @@ const StreamRule = React.createClass({
     return (
       <span>
         <a href="#" onClick={this._onDelete} style={{ marginRight: 5 }}>
-          <i className="fa fa-trash-o"/>
+          <i className="fa fa-trash-o" />
         </a>
         <a href="#" onClick={this._onEdit} style={{ marginRight: 5 }}>
-          <i className="fa fa-edit"/>
+          <i className="fa fa-edit" />
         </a>
       </span>
     );
@@ -69,7 +70,7 @@ const StreamRule = React.createClass({
         {actionItems}
         <HumanReadableStreamRule streamRule={streamRule} streamRuleTypes={streamRuleTypes} />
         <StreamRuleForm ref="streamRuleForm" streamRule={streamRule} streamRuleTypes={streamRuleTypes}
-                        title="Edit Stream Rule" onSubmit={this._onSubmit}/>
+                        title="Edit Stream Rule" onSubmit={this._onSubmit} />
         {description}
       </li>
     );

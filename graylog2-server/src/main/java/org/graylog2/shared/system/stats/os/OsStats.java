@@ -19,15 +19,16 @@ package org.graylog2.shared.system.stats.os;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
-
-import java.util.List;
+import org.graylog.autovalue.WithBeanGetter;
 
 @JsonAutoDetect
 @AutoValue
+@WithBeanGetter
 public abstract class OsStats {
     public static final double[] EMPTY_LOAD = new double[0];
 
     @JsonProperty
+    @SuppressWarnings("mutable")
     public abstract double[] loadAverage();
 
     @JsonProperty

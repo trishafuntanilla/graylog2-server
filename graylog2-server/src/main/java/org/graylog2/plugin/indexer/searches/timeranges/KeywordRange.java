@@ -36,13 +36,19 @@ public abstract class KeywordRange extends TimeRange {
     public static final String KEYWORD = "keyword";
 
     @JsonProperty
+    @Override
     public abstract String type();
 
     @JsonProperty
     public abstract String keyword();
 
-    @JsonIgnore
-    public abstract NaturalDateParser.Result parseResult();
+    private static NaturalDateParser.Result parseResult(String keyword) throws InvalidRangeParametersException {
+        try {
+            return DATE_PARSER.parse(keyword);
+        } catch (NaturalDateParser.DateNotParsableException e) {
+            throw new InvalidRangeParametersException("Could not parse from natural date: " + keyword);
+        }
+    }
 
     @JsonCreator
     public static KeywordRange create(@JsonProperty("type") String type, @JsonProperty("keyword") String keyword) throws InvalidRangeParametersException {
@@ -62,13 +68,23 @@ public abstract class KeywordRange extends TimeRange {
     }
 
     @JsonIgnore
+    @Override
     public DateTime getFrom() {
-        return parseResult().getFrom();
+        try {
+            return parseResult(keyword()).getFrom();
+        } catch (InvalidRangeParametersException e) {
+            return null;
+        }
     }
 
     @JsonIgnore
+    @Override
     public DateTime getTo() {
-        return parseResult().getTo();
+        try {
+            return parseResult(keyword()).getTo();
+        } catch (InvalidRangeParametersException e) {
+            return null;
+        }
     }
 
     @Override
@@ -87,18 +103,10 @@ public abstract class KeywordRange extends TimeRange {
 
         abstract String keyword();
 
-        public abstract Builder parseResult(NaturalDateParser.Result result);
-
         abstract KeywordRange autoBuild();
 
         public KeywordRange build() throws InvalidRangeParametersException {
-            final NaturalDateParser.Result parse;
-            try {
-                parse = DATE_PARSER.parse(keyword());
-            } catch (NaturalDateParser.DateNotParsableException e) {
-                throw new InvalidRangeParametersException("Could not parse from natural date: " + keyword());
-            }
-            parseResult(parse);
+            parseResult(keyword());
             return autoBuild();
         }
     }

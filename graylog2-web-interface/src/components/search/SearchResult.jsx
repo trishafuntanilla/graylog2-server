@@ -1,7 +1,9 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Immutable from 'immutable';
 import { Col, Row } from 'react-bootstrap';
 
+import { LoadingIndicator } from 'components/common';
 import { LegacyHistogram, NoSearchResults, ResultTable, SearchSidebar } from 'components/search';
 
 import StoreProvider from 'injection/StoreProvider';
@@ -12,17 +14,19 @@ import {} from 'components/field-analyzers'; // Make sure to load all field anal
 
 const SearchResult = React.createClass({
   propTypes: {
-    query: React.PropTypes.string,
-    builtQuery: React.PropTypes.string,
-    result: React.PropTypes.object.isRequired,
-    histogram: React.PropTypes.object.isRequired,
-    formattedHistogram: React.PropTypes.array,
-    searchInStream: React.PropTypes.object,
-    streams: React.PropTypes.instanceOf(Immutable.Map),
-    inputs: React.PropTypes.instanceOf(Immutable.Map),
-    nodes: React.PropTypes.instanceOf(Immutable.Map),
-    permissions: React.PropTypes.array.isRequired,
-    searchConfig: React.PropTypes.object.isRequired,
+    query: PropTypes.string,
+    builtQuery: PropTypes.string,
+    result: PropTypes.object.isRequired,
+    histogram: PropTypes.object.isRequired,
+    formattedHistogram: PropTypes.array,
+    searchInStream: PropTypes.object,
+    streams: PropTypes.instanceOf(Immutable.Map),
+    inputs: PropTypes.instanceOf(Immutable.Map),
+    nodes: PropTypes.instanceOf(Immutable.Map),
+    permissions: PropTypes.array.isRequired,
+    searchConfig: PropTypes.object.isRequired,
+    loadingSearch: PropTypes.bool,
+    forceFetch: PropTypes.bool,
   },
 
   getDefaultProps() {
@@ -38,14 +42,16 @@ const SearchResult = React.createClass({
   },
 
   getInitialState() {
-    const initialFields = SearchStore.fields;
     return {
-      selectedFields: this.sortFields(initialFields),
-      sortField: SearchStore.sortField,
-      sortOrder: SearchStore.sortOrder,
+      selectedFields: this.sortFields(SearchStore.fields),
       showAllFields: false,
       shouldHighlight: true,
+      savedSearch: SearchStore.savedSearch,
     };
+  },
+
+  componentDidUpdate() {
+    this._resetSelectedFields();
   },
 
   onFieldToggled(fieldName) {
@@ -57,6 +63,16 @@ const SearchResult = React.createClass({
       newFieldSet = currentFields.add(fieldName);
     }
     this.updateSelectedFields(newFieldSet);
+  },
+
+  // Reset selected fields if saved search changed
+  _resetSelectedFields() {
+    if (this.state.savedSearch !== SearchStore.savedSearch) {
+      this.setState({
+        savedSearch: SearchStore.savedSearch,
+        selectedFields: this.sortFields(SearchStore.fields),
+      });
+    }
   },
 
   togglePageFields() {
@@ -104,20 +120,30 @@ const SearchResult = React.createClass({
   },
 
   _fieldAnalyzerComponents(filter) {
+    // Get params used in the last executed search.
+    const searchParams = SearchStore.getOriginalSearchURLParams().toJS();
+    const rangeParams = {};
+    ['relative', 'from', 'to', 'keyword'].forEach((param) => {
+      if (searchParams[param]) {
+        rangeParams[param] = searchParams[param];
+      }
+    });
+
     return this._fieldAnalyzers(filter)
       .map((analyzer, idx) => {
         return React.createElement(analyzer.component, {
           key: idx,
           ref: analyzer.refId,
           permissions: this.props.permissions,
-          query: SearchStore.query,
-          page: SearchStore.page,
-          rangeType: SearchStore.rangeType,
-          rangeParams: SearchStore.rangeParams.toJS(),
+          query: searchParams.q,
+          page: searchParams.page,
+          rangeType: searchParams.rangetype,
+          rangeParams: rangeParams,
           stream: this.props.searchInStream,
           resolution: this.props.histogram.interval,
           from: this.props.histogram.histogram_boundaries.from,
           to: this.props.histogram.histogram_boundaries.to,
+          forceFetch: this.props.forceFetch,
         });
       });
   },
@@ -137,13 +163,22 @@ const SearchResult = React.createClass({
   render() {
     const anyHighlightRanges = Immutable.fromJS(this.props.result.messages).some(message => message.get('highlight_ranges') !== null);
 
+    let loadingIndicator;
+    if (this.props.loadingSearch) {
+      loadingIndicator = <LoadingIndicator text="Updating search results..." />;
+    }
+
     // short circuit if the result turned up empty
     if (this.props.result.total_results === 0) {
       return (
-        <NoSearchResults builtQuery={this.props.builtQuery} histogram={this.props.histogram}
-                         permissions={this.props.permissions} searchInStream={this.props.searchInStream} />
+        <div>
+          <NoSearchResults builtQuery={this.props.builtQuery} histogram={this.props.histogram}
+                           permissions={this.props.permissions} searchInStream={this.props.searchInStream} />
+          {loadingIndicator}
+        </div>
       );
     }
+
     return (
       <Row id="main-content-search">
         <Col ref="opa" md={3} sm={12} id="sidebar">
@@ -163,33 +198,35 @@ const SearchResult = React.createClass({
                          currentSavedSearch={SearchStore.savedSearch}
                          searchInStream={this.props.searchInStream}
                          permissions={this.props.permissions}
+                         loadingSearch={this.props.loadingSearch}
           />
         </Col>
         <Col md={9} sm={12} id="main-content-sidebar">
-          {this._fieldAnalyzerComponents((analyzer) => this._shouldRenderAboveHistogram(analyzer))}
+          {this._fieldAnalyzerComponents(analyzer => this._shouldRenderAboveHistogram(analyzer))}
 
           <LegacyHistogram formattedHistogram={this.props.formattedHistogram}
                            histogram={this.props.histogram}
                            permissions={this.props.permissions}
-                           stream={this.props.searchInStream}/>
+                           stream={this.props.searchInStream} />
 
-          {this._fieldAnalyzerComponents((analyzer) => this._shouldRenderBelowHistogram(analyzer))}
+          {this._fieldAnalyzerComponents(analyzer => this._shouldRenderBelowHistogram(analyzer))}
 
           <ResultTable messages={this.props.result.messages}
                        page={SearchStore.page}
                        selectedFields={this.state.selectedFields}
-                       sortField={this.state.sortField}
-                       sortOrder={this.state.sortOrder}
+                       sortField={SearchStore.sortField}
+                       sortOrder={SearchStore.sortOrder}
                        resultCount={this.props.result.total_results}
                        inputs={this.props.inputs}
                        streams={this.props.streams}
                        nodes={this.props.nodes}
                        highlight={this.state.shouldHighlight}
-                       searchConfig={this.props.searchConfig}
-          />
+                       searchConfig={this.props.searchConfig} />
 
+          {loadingIndicator}
         </Col>
-      </Row>);
+      </Row>
+    );
   },
 });
 

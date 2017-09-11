@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 
 import moment from 'moment';
@@ -5,7 +6,7 @@ import {} from 'moment-duration-format';
 
 const TimeBasedRotationStrategySummary = React.createClass({
   propTypes: {
-    config: React.PropTypes.object.isRequired,
+    config: PropTypes.object.isRequired,
   },
 
   _humanizedPeriod() {
@@ -17,7 +18,7 @@ const TimeBasedRotationStrategySummary = React.createClass({
   render() {
     return (
       <div>
-        <dl className="deflist">
+        <dl>
           <dt>Index rotation strategy:</dt>
           <dd>Index Time</dd>
           <dt>Rotation period:</dt>

@@ -2,17 +2,15 @@ import Reflux from 'reflux';
 
 import URLUtils from 'util/URLUtils';
 import fetch from 'logic/rest/FetchProvider';
+import ApiRoutes from 'routing/ApiRoutes';
 
-import StoreProvider from 'injection/StoreProvider';
-const SessionStore = StoreProvider.getStore('Session');
-const StartpageStore = StoreProvider.getStore('Startpage');
+import CombinedProvider from 'injection/CombinedProvider';
 
-import ActionsProvider from 'injection/ActionsProvider';
-const SessionActions = ActionsProvider.getActions('Session');
+const { SessionStore, SessionActions } = CombinedProvider.get('Session');
+const { StartpageStore } = CombinedProvider.get('Startpage');
 
 const CurrentUserStore = Reflux.createStore({
   listenables: [SessionActions],
-  sourceUrl: '/users',
   currentUser: undefined,
 
   init() {
@@ -21,7 +19,7 @@ const CurrentUserStore = Reflux.createStore({
   },
 
   getInitialState() {
-    return {currentUser: this.currentUser};
+    return { currentUser: this.currentUser };
   },
 
   get() {
@@ -32,6 +30,9 @@ const CurrentUserStore = Reflux.createStore({
     if (sessionInfo.sessionId && sessionInfo.username) {
       const username = sessionInfo.username;
       this.update(username);
+    } else {
+      this.currentUser = undefined;
+      this.trigger({ currentUser: this.currentUser });
     }
   },
 
@@ -42,10 +43,10 @@ const CurrentUserStore = Reflux.createStore({
   },
 
   update(username) {
-    fetch('GET', URLUtils.qualifyUrl(this.sourceUrl + '/' + username))
+    fetch('GET', URLUtils.qualifyUrl(ApiRoutes.UsersApiController.load(encodeURIComponent(username)).url))
       .then((resp) => {
         this.currentUser = resp;
-        this.trigger({currentUser: this.currentUser});
+        this.trigger({ currentUser: this.currentUser });
       });
   },
 });

@@ -1,6 +1,10 @@
 import React from 'react';
 import Reflux from 'reflux';
-import { Row, Input, ButtonInput, Alert } from 'react-bootstrap';
+import { Row, Button, FormGroup, Alert } from 'react-bootstrap';
+import { DocumentTitle } from 'components/common';
+
+import { Input } from 'components/bootstrap';
+import LoadingPage from './LoadingPage';
 
 import StoreProvider from 'injection/StoreProvider';
 const SessionStore = StoreProvider.getStore('Session');
@@ -12,9 +16,17 @@ import authStyle from '!style/useable!css!less!stylesheets/auth.less';
 
 const LoginPage = React.createClass({
   mixins: [Reflux.connect(SessionStore), Reflux.ListenerMethods],
+
+  getInitialState() {
+    return {
+      loading: false,
+    };
+  },
+
   componentDidMount() {
     disconnectedStyle.use();
     authStyle.use();
+    SessionActions.validate();
   },
   componentWillUnmount() {
     disconnectedStyle.unuse();
@@ -24,14 +36,21 @@ const LoginPage = React.createClass({
   onSignInClicked(event) {
     event.preventDefault();
     this.resetLastError();
+    this.setState({ loading: true });
     const username = this.refs.username.getValue();
     const password = this.refs.password.getValue();
     const location = document.location.host;
-    SessionActions.login.triggerPromise(username, password, location).catch((error) => {
+    const promise = SessionActions.login.triggerPromise(username, password, location);
+    promise.catch((error) => {
       if (error.additional.status === 401) {
-        this.setState({lastError: 'Invalid credentials, please verify them and retry.'});
+        this.setState({ lastError: 'Invalid credentials, please verify them and retry.' });
       } else {
-        this.setState({lastError: 'Error - the server returned: ' + error.additional.status + ' - ' + error.message});
+        this.setState({ lastError: `Error - the server returned: ${error.additional.status} - ${error.message}` });
+      }
+    });
+    promise.finally(() => {
+      if (this.isMounted()) {
+        this.setState({ loading: false });
       }
     });
   },
@@ -48,29 +67,41 @@ const LoginPage = React.createClass({
     return null;
   },
   resetLastError() {
-    this.setState({lastError: undefined});
+    this.setState({ lastError: undefined });
   },
   render() {
+    if (this.state.validatingSession) {
+      return (
+        <LoadingPage />
+      );
+    }
+
     const alert = this.formatLastError(this.state.lastError);
     return (
-      <div>
-        <div className="container" id="login-box">
-          <Row>
-            <form className="col-md-4 col-md-offset-4 well" id="login-box-content" onSubmit={this.onSignInClicked}>
-              <legend><i className="fa fa-group"/> Welcome to Graylog</legend>
+      <DocumentTitle title="Sign in">
+        <div>
+          <div className="container" id="login-box">
+            <Row>
+              <form className="col-md-4 col-md-offset-4 well" id="login-box-content" onSubmit={this.onSignInClicked}>
+                <legend><i className="fa fa-group" /> Welcome to Graylog</legend>
 
-              {alert}
+                {alert}
 
-              <Input ref="username" type="text" placeholder="Username" autoFocus />
+                <Input ref="username" type="text" placeholder="Username" autoFocus />
 
-              <Input ref="password" type="password" placeholder="Password" />
+                <Input ref="password" type="password" placeholder="Password" />
 
-              <ButtonInput type="submit" bsStyle="info">Sign in</ButtonInput>
+                <FormGroup>
+                  <Button type="submit" bsStyle="info" disabled={this.state.loading}>
+                    {this.state.loading ? 'Signing in...' : 'Sign in'}
+                  </Button>
+                </FormGroup>
 
-            </form>
-          </Row>
+              </form>
+            </Row>
+          </div>
         </div>
-      </div>
+      </DocumentTitle>
     );
   },
 });

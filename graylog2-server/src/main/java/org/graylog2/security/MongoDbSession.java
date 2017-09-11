@@ -16,21 +16,30 @@
  */
 package org.graylog2.security;
 
+import org.apache.shiro.subject.support.DefaultSubjectContext;
 import org.bson.types.ObjectId;
 import org.graylog2.database.CollectionName;
 import org.graylog2.database.PersistedImpl;
 import org.graylog2.plugin.database.validators.Validator;
+import org.graylog2.shared.SuppressForbidden;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.Date;
 import java.util.Map;
+import java.util.Optional;
 
-@CollectionName("sessions")
+@CollectionName(MongoDbSession.COLLECTION_NAME)
 public class MongoDbSession extends PersistedImpl {
     private static final Logger LOG = LoggerFactory.getLogger(MongoDbSession.class);
+    static final String COLLECTION_NAME = "sessions";
+    static final String FIELD_SESSION_ID = "session_id";
 
     protected MongoDbSession(Map<String, Object> fields) {
         super(fields);
@@ -50,7 +59,7 @@ public class MongoDbSession extends PersistedImpl {
         return null;
     }
 
-
+    @SuppressForbidden("Deliberate use of ObjectInputStream")
     public Map<Object, Object> getAttributes() {
         final Object attributes = fields.get("attributes");
         if (attributes == null) {
@@ -58,6 +67,7 @@ public class MongoDbSession extends PersistedImpl {
         }
         final ByteArrayInputStream bis = new ByteArrayInputStream((byte[]) attributes);
         try {
+            // FIXME: This could break backward compatibility if different Java versions are being used.
             final ObjectInputStream ois = new ObjectInputStream(bis);
             final Object o = ois.readObject();
             return (Map<Object, Object>) o;
@@ -69,10 +79,12 @@ public class MongoDbSession extends PersistedImpl {
         return null;
     }
 
+    @SuppressForbidden("Deliberate use of ObjectOutputStream")
     public void setAttributes(Map<Object, Object> attributes) {
 
         try {
             final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            // FIXME: This could break backward compatibility if different Java versions are being used.
             final ObjectOutputStream oos = new ObjectOutputStream(bos);
             oos.writeObject(attributes);
             oos.close();
@@ -82,6 +94,13 @@ public class MongoDbSession extends PersistedImpl {
         }
     }
 
+    public Optional<String> getUsernameAttribute() {
+        final Map<Object, Object> attributes = getAttributes();
+        if (attributes == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(String.valueOf(attributes.get(DefaultSubjectContext.PRINCIPALS_SESSION_KEY)));
+    }
 
     public String getHost() {
         return (String) fields.get("host");
@@ -127,6 +146,6 @@ public class MongoDbSession extends PersistedImpl {
     }
 
     public String getSessionId() {
-        return String.valueOf(fields.get("session_id"));
+        return String.valueOf(fields.get(FIELD_SESSION_ID));
     }
 }

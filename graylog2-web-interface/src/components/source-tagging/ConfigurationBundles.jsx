@@ -40,7 +40,7 @@ const ConfigurationBundles = React.createClass({
           <SourceType id={bundle.id}
                       name={bundle.name}
                       description={bundle.description}
-                      onSelect={this.handleSourceTypeChange}/>
+                      onSelect={this.handleSourceTypeChange} />
         </li>
       );
     }, this);
@@ -77,16 +77,21 @@ const ConfigurationBundles = React.createClass({
     reader.onload = (evt) => {
       const request = evt.target.result;
       ConfigurationBundlesActions.create.triggerPromise(request)
-        .then(() => {
-          UserNotification.success('Bundle added successfully', 'Success!');
-          ConfigurationBundlesActions.list();
-        });
+        .then(
+          () => {
+            UserNotification.success('Content pack imported successfully', 'Success!');
+            ConfigurationBundlesActions.list();
+          },
+          () => {
+            UserNotification.error('Error importing content pack, please ensure it is a valid JSON file. Check your ' +
+              'Graylog logs for more information.', 'Could not import content pack');
+          });
     };
 
     reader.readAsText(this.refs.uploadedFile.files[0]);
   },
   handleSourceTypeChange(sourceTypeId, sourceTypeDescription) {
-    this.setState({sourceTypeId: sourceTypeId, sourceTypeDescription: sourceTypeDescription});
+    this.setState({ sourceTypeId: sourceTypeId, sourceTypeDescription: sourceTypeDescription });
   },
   _resetSelection() {
     this.setState(this.getInitialState());
@@ -96,20 +101,20 @@ const ConfigurationBundles = React.createClass({
       <Row className="configuration-bundles">
         <Col md={6}>
           {this.state.configurationBundles ?
-          <Accordion>
-            {this._getCategoriesHtml()}
-            <Panel header="Import content pack" eventKey={-1}>
-              <form onSubmit={this.onSubmit} className="upload" encType="multipart/form-data">
-                <span className="help-block">Remember to apply the content pack after uploading it, to make the changes effective.</span>
-                <div className="form-group">
-                  <input ref="uploadedFile" type="file" name="bundle"/>
-                </div>
-                <button type="submit" className="btn btn-success">Upload</button>
-              </form>
-            </Panel>
-          </Accordion>
+            <Accordion>
+              {this._getCategoriesHtml()}
+              <Panel header="Import content pack" eventKey={-1}>
+                <form onSubmit={this.onSubmit} className="upload" encType="multipart/form-data">
+                  <span className="help-block">Remember to apply the content pack after uploading it, to make the changes effective.</span>
+                  <div className="form-group">
+                    <input ref="uploadedFile" type="file" name="bundle" />
+                  </div>
+                  <button type="submit" className="btn btn-success">Upload</button>
+                </form>
+              </Panel>
+            </Accordion>
             :
-          <Spinner />
+            <Spinner />
             }
         </Col>
         <Col md={6}>

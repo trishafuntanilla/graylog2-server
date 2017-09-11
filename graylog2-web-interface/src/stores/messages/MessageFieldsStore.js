@@ -1,7 +1,6 @@
 import Reflux from 'reflux';
 import md5 from 'md5';
 
-import UserNotification from 'util/UserNotification';
 import URLUtils from 'util/URLUtils';
 import ApiRoutes from 'routing/ApiRoutes';
 import fetch from 'logic/rest/FetchProvider';
@@ -14,7 +13,7 @@ const MessageFieldsStore = Reflux.createStore({
     this.list();
   },
   getInitialState() {
-    return {fields: this.fields};
+    return { fields: this.fields };
   },
   list() {
     const url = URLUtils.qualifyUrl(ApiRoutes.MessageFieldsApiController.list().url);

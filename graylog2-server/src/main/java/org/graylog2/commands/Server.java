@@ -16,16 +16,22 @@
  */
 package org.graylog2.commands;
 
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ServiceManager;
 import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.google.inject.spi.Message;
 import com.mongodb.MongoException;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.graylog2.Configuration;
+import org.graylog2.alerts.AlertConditionBindings;
+import org.graylog2.audit.AuditActor;
+import org.graylog2.audit.AuditBindings;
+import org.graylog2.audit.AuditEventSender;
 import org.graylog2.bindings.AlarmCallbackBindings;
+import org.graylog2.bindings.ConfigurationModule;
+import org.graylog2.bindings.ElasticsearchModule;
 import org.graylog2.bindings.InitializerBindings;
 import org.graylog2.bindings.MessageFilterBindings;
 import org.graylog2.bindings.MessageOutputBindings;
@@ -33,24 +39,28 @@ import org.graylog2.bindings.PasswordAlgorithmBindings;
 import org.graylog2.bindings.PeriodicalBindings;
 import org.graylog2.bindings.PersistenceServicesBindings;
 import org.graylog2.bindings.ServerBindings;
-import org.graylog2.bindings.WebInterfaceModule;
 import org.graylog2.bindings.WidgetStrategyBindings;
 import org.graylog2.bootstrap.Main;
 import org.graylog2.bootstrap.ServerBootstrap;
 import org.graylog2.cluster.NodeService;
+import org.graylog2.configuration.ElasticsearchClientConfiguration;
 import org.graylog2.configuration.ElasticsearchConfiguration;
 import org.graylog2.configuration.EmailConfiguration;
 import org.graylog2.configuration.MongoDbConfiguration;
 import org.graylog2.configuration.VersionCheckConfiguration;
 import org.graylog2.dashboards.DashboardBindings;
+import org.graylog2.decorators.DecoratorBindings;
+import org.graylog2.indexer.IndexerBindings;
 import org.graylog2.indexer.retention.RetentionStrategyBindings;
 import org.graylog2.indexer.rotation.RotationStrategyBindings;
 import org.graylog2.messageprocessors.MessageProcessorModule;
+import org.graylog2.migrations.MigrationsModule;
 import org.graylog2.notifications.Notification;
 import org.graylog2.notifications.NotificationService;
 import org.graylog2.plugin.KafkaJournalConfiguration;
 import org.graylog2.plugin.ServerStatus;
 import org.graylog2.plugin.Tools;
+import org.graylog2.plugin.system.NodeId;
 import org.graylog2.shared.UI;
 import org.graylog2.shared.bindings.ObjectMapperModule;
 import org.graylog2.shared.bindings.RestApiBindings;
@@ -68,12 +78,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.graylog2.audit.AuditEventTypes.NODE_SHUTDOWN_INITIATE;
+
 @Command(name = "server", description = "Start the Graylog server")
 public class Server extends ServerBootstrap {
     private static final Logger LOG = LoggerFactory.getLogger(Server.class);
 
     private static final Configuration configuration = new Configuration();
     private final ElasticsearchConfiguration elasticsearchConfiguration = new ElasticsearchConfiguration();
+    private final ElasticsearchClientConfiguration elasticsearchClientConfiguration = new ElasticsearchClientConfiguration();
     private final EmailConfiguration emailConfiguration = new EmailConfiguration();
     private final MongoDbConfiguration mongoDbConfiguration = new MongoDbConfiguration();
     private final VersionCheckConfiguration versionCheckConfiguration = new VersionCheckConfiguration();
@@ -94,7 +107,9 @@ public class Server extends ServerBootstrap {
     protected List<Module> getCommandBindings() {
         final ImmutableList.Builder<Module> modules = ImmutableList.builder();
         modules.add(
+            new ConfigurationModule(configuration),
             new ServerBindings(configuration),
+            new ElasticsearchModule(),
             new PersistenceServicesBindings(),
             new MessageFilterBindings(),
             new MessageProcessorModule(),
@@ -108,12 +123,13 @@ public class Server extends ServerBootstrap {
             new RestApiBindings(),
             new PasswordAlgorithmBindings(),
             new WidgetStrategyBindings(),
-            new DashboardBindings()
+            new DashboardBindings(),
+            new DecoratorBindings(),
+            new AuditBindings(),
+            new AlertConditionBindings(),
+            new IndexerBindings(),
+            new MigrationsModule()
         );
-
-        if (configuration.isWebEnable()) {
-            modules.add(new WebInterfaceModule());
-        }
 
         return modules.build();
     }
@@ -122,6 +138,7 @@ public class Server extends ServerBootstrap {
     protected List<Object> getCommandConfigurationBeans() {
         return Arrays.asList(configuration,
                 elasticsearchConfiguration,
+                elasticsearchClientConfiguration,
                 emailConfiguration,
                 mongoDbConfiguration,
                 versionCheckConfiguration,
@@ -170,13 +187,18 @@ public class Server extends ServerBootstrap {
     private static class ShutdownHook implements Runnable {
         private final ActivityWriter activityWriter;
         private final ServiceManager serviceManager;
+        private final NodeId nodeId;
         private final GracefulShutdown gracefulShutdown;
+        private final AuditEventSender auditEventSender;
 
         @Inject
-        public ShutdownHook(ActivityWriter activityWriter, ServiceManager serviceManager, GracefulShutdown gracefulShutdown) {
+        public ShutdownHook(ActivityWriter activityWriter, ServiceManager serviceManager, NodeId nodeId,
+                            GracefulShutdown gracefulShutdown, AuditEventSender auditEventSender) {
             this.activityWriter = activityWriter;
             this.serviceManager = serviceManager;
+            this.nodeId = nodeId;
             this.gracefulShutdown = gracefulShutdown;
+            this.auditEventSender = auditEventSender;
         }
 
         @Override
@@ -184,6 +206,8 @@ public class Server extends ServerBootstrap {
             String msg = "SIGNAL received. Shutting down.";
             LOG.info(msg);
             activityWriter.write(new Activity(msg, Main.class));
+
+            auditEventSender.success(AuditActor.system(nodeId), NODE_SHUTDOWN_INITIATE);
 
             gracefulShutdown.runWithoutExit();
             serviceManager.stopAsync().awaitStopped();

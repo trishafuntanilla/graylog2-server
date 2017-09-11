@@ -18,14 +18,14 @@ package integration.util.mongodb;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.util.JSON;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,24 +33,26 @@ import java.util.Map;
 public class JsonReader implements DumpReader {
     private final Map<String, List<DBObject>> collectionMap = new HashMap<>();
 
-    public JsonReader(URL location) throws IOException {
-        final File file = new File(location.getPath());
+    public JsonReader(URI location) throws IOException {
+        final File file = new File(location);
 
         final ObjectMapper mapper = new ObjectMapper();
-        final TypeReference ref = new TypeReference<Map<String, List<Map<String, Object>>>>(){};
+        final TypeReference ref = new TypeReference<Map<String, List<Map<String, Object>>>>() {
+        };
         final Map<String, List<Map<String, Object>>> rawMap = mapper.readValue(file, ref);
 
         for (Map.Entry<String, List<Map<String, Object>>> entry : rawMap.entrySet()) {
             if (!collectionMap.containsKey(entry.getKey()))
-                collectionMap.put(entry.getKey(), Lists.<DBObject>newArrayList());
+                collectionMap.put(entry.getKey(), new ArrayList<>());
 
             for (Map<String, Object> rawDoc : entry.getValue()) {
-                final BasicDBObject dbObject = (BasicDBObject)JSON.parse(mapper.writeValueAsString(rawDoc));
+                final BasicDBObject dbObject = (BasicDBObject) JSON.parse(mapper.writeValueAsString(rawDoc));
                 collectionMap.get(entry.getKey()).add(dbObject);
             }
         }
     }
 
+    @Override
     public Map<String, List<DBObject>> toMap() {
         return collectionMap;
     }

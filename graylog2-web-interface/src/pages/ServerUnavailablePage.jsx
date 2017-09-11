@@ -1,5 +1,7 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { Modal, Well } from 'react-bootstrap';
+import { DocumentTitle } from 'components/common';
 
 import URLUtils from 'util/URLUtils';
 
@@ -7,7 +9,7 @@ import disconnectedStyle from '!style/useable!css!less!stylesheets/disconnected.
 
 const ServerUnavailablePage = React.createClass({
   propTypes: {
-    server: React.PropTypes.object,
+    server: PropTypes.object,
   },
 
   getInitialState() {
@@ -25,7 +27,7 @@ const ServerUnavailablePage = React.createClass({
   },
 
   _toggleDetails() {
-    this.setState({showDetails: !this.state.showDetails});
+    this.setState({ showDetails: !this.state.showDetails });
   },
 
   _formatErrorMessage() {
@@ -35,7 +37,7 @@ const ServerUnavailablePage = React.createClass({
 
     const noInformationMessage = (
       <div>
-        <hr/>
+        <hr />
         <p>There is no information available.</p>
       </div>
     );
@@ -54,17 +56,17 @@ const ServerUnavailablePage = React.createClass({
       const originalError = error.originalError;
       errorDetails.push(
         <dt key="status-original-request-title">Original Request</dt>,
-        <dd key="status-original-request-content">{String(originalError.method)} {String(originalError.url)}</dd>
+        <dd key="status-original-request-content">{String(originalError.method)} {String(originalError.url)}</dd>,
       );
       errorDetails.push(
         <dt key="status-code-title">Status code</dt>,
-        <dd key="status-code-desc">{String(originalError.status)}</dd>
+        <dd key="status-code-desc">{String(originalError.status)}</dd>,
       );
 
       if (typeof originalError.toString === 'function') {
         errorDetails.push(
           <dt key="full-error-title">Full error message</dt>,
-          <dd key="full-error-desc">{originalError.toString()}</dd>
+          <dd key="full-error-desc">{originalError.toString()}</dd>,
         );
       }
     }
@@ -75,10 +77,10 @@ const ServerUnavailablePage = React.createClass({
 
     return (
       <div>
-        <hr style={{marginTop: 10, marginBottom: 10}}/>
+        <hr style={{ marginTop: 10, marginBottom: 10 }} />
         <p>This is the last response we received from the server:</p>
-        <Well bsSize="small" style={{whiteSpace: 'pre-line'}}>
-          <dl style={{marginBottom: 0}}>
+        <Well bsSize="small" style={{ whiteSpace: 'pre-line' }}>
+          <dl style={{ marginBottom: 0 }}>
             {errorDetails}
           </dl>
         </Well>
@@ -88,30 +90,32 @@ const ServerUnavailablePage = React.createClass({
 
   render() {
     return (
-      <Modal show>
-        <Modal.Header>
-          <Modal.Title><i className="fa fa-exclamation-triangle"/> Server currently unavailable</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <div>
-            <p>
-              We are experiencing problems connecting to the Graylog server running on <i>{URLUtils.qualifyUrl('')}</i>.
-              Please verify that the server is healthy and working correctly.
-            </p>
-            <p>You will be automatically redirected to the previous page once we can connect to the server.</p>
-            <p>
-              Do you need a hand?{' '}
-              <a href="https://www.graylog.org/community-support" target="_blank">We can help you</a>.
-            </p>
+      <DocumentTitle title="Server unavailable">
+        <Modal show>
+          <Modal.Header>
+            <Modal.Title><i className="fa fa-exclamation-triangle" /> Server currently unavailable</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
             <div>
-              <a href="#" onClick={this._toggleDetails}>
-                {this.state.showDetails ? 'Less details' : 'More details'}
-              </a>
-              {this._formatErrorMessage()}
+              <p>
+                We are experiencing problems connecting to the Graylog server running on <i>{URLUtils.qualifyUrl('')}</i>.
+                Please verify that the server is healthy and working correctly.
+              </p>
+              <p>You will be automatically redirected to the previous page once we can connect to the server.</p>
+              <p>
+                Do you need a hand?{' '}
+                <a href="https://www.graylog.org/community-support" target="_blank">We can help you</a>.
+              </p>
+              <div>
+                <a href="#" onClick={this._toggleDetails}>
+                  {this.state.showDetails ? 'Less details' : 'More details'}
+                </a>
+                {this._formatErrorMessage()}
+              </div>
             </div>
-          </div>
-        </Modal.Body>
-      </Modal>
+          </Modal.Body>
+        </Modal>
+      </DocumentTitle>
     );
   },
 });

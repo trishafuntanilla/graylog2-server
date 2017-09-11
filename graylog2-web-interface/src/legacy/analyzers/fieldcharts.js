@@ -1,5 +1,6 @@
 import jQuery from 'jquery';
-import jQueryUI from 'jquery-ui';
+import {} from 'jquery-ui/ui/widgets/draggable';
+import {} from 'jquery-ui/ui/widgets/droppable';
 import moment from 'moment';
 import numeral from 'numeral';
 import Rickshaw from 'rickshaw';
@@ -25,35 +26,35 @@ function generateShortId() {
 export function generateId() {
   let r = '';
   for (let i = 0; i < 4; i++) {
-    r = r + generateShortId();
+    r += generateShortId();
   }
 
   return r;
 }
 
 function sendFailureEvent(graphId, errorMessage) {
-  jQuery(document).trigger('failed.graylog.fieldgraph', {graphId: graphId, errorMessage: errorMessage});
+  jQuery(document).trigger('failed.graylog.fieldgraph', { graphId: graphId, errorMessage: errorMessage });
 }
 
 function sendCreatedGraphEvent(opts) {
-  jQuery(document).trigger('created.graylog.fieldgraph', {graphOptions: opts});
+  jQuery(document).trigger('created.graylog.fieldgraph', { graphOptions: opts });
 }
 
 function sendUpdatedGraphEvent(opts) {
-  jQuery(document).trigger('updated.graylog.fieldgraph', {graphOptions: opts});
+  jQuery(document).trigger('updated.graylog.fieldgraph', { graphOptions: opts });
 }
 
 function sendMergedGraphsEvent(targetGraphId, draggedGraphId) {
-  jQuery(document).trigger('merged.graylog.fieldgraph', {targetGraphId: targetGraphId, draggedGraphId: draggedGraphId});
+  jQuery(document).trigger('merged.graylog.fieldgraph', { targetGraphId: targetGraphId, draggedGraphId: draggedGraphId });
 }
 
 export const FieldChart = {
   fieldGraphs: {},
   GRAPH_HEIGHT: 120,
-  palette: new Rickshaw.Color.Palette({scheme: 'colorwheel'}),
+  palette: new Rickshaw.Color.Palette({ scheme: 'colorwheel' }),
 
   reload() {
-    this.palette = new Rickshaw.Color.Palette({scheme: 'colorwheel'});
+    this.palette = new Rickshaw.Color.Palette({ scheme: 'colorwheel' });
   },
 
   _getDefaultOptions(opts) {
@@ -141,7 +142,7 @@ export const FieldChart = {
     lines.push(JSON.stringify(opts));
     $graphContainer.attr('data-lines', lines);
 
-    jQuery('.type-description', $graphContainer).text('[' + GraphVisualization.getReadableFieldChartStatisticalFunction(opts.valuetype) + '] ' + opts.field + ', ');
+    this._updateStatisticalFunctionText($graphContainer, opts);
 
     // Do not add from time when we search in all messages
     const from = $graphContainer.data('from') !== undefined ? data.from : undefined;
@@ -179,10 +180,10 @@ export const FieldChart = {
 
     new Rickshaw.Graph.HoverDetail({
       graph: graph,
-      formatter: function(series, x, y) {
+      formatter(series, x, y) {
         const date = `<span class="date">${new DateTime(x * 1000).toString(DateTime.Formats.COMPLETE)}</span>`;
-        const swatch = '<span class="detail_swatch" style="background-color: ' + series.color + '"></span>';
-        const content = swatch + '[' + series.valuetype + '] ' + series.field + ': ' + numeral(y).format('0,0.[000]') + '<br>' + date;
+        const swatch = `<span class="detail_swatch" style="background-color: ${series.color}"></span>`;
+        const content = `${swatch}[${series.valuetype}] ${series.field}: ${numeral(y).format('0,0.[000]')}<br>${date}`;
         return content;
       },
     });
@@ -295,11 +296,12 @@ export const FieldChart = {
       opts.field,
       opts.interval,
       timeRangeParams,
-      opts.streamid
+      opts.streamid,
+      opts.valuetype === 'cardinality',
     ).url;
 
     return fetch('GET', URLUtils.qualifyUrl(url))
-      .then(response => {
+      .then((response) => {
         const formattedResponse = {
           time: response.time,
           interval: response.interval,
@@ -330,7 +332,7 @@ export const FieldChart = {
 
     const promise = this._fetchData(opts, timeRangeParams);
     promise
-      .then(data => {
+      .then((data) => {
         // Delete a possibly already existing graph to manage updates.
         $graphElement.html('');
         $graphYAxis.html('');
@@ -357,24 +359,29 @@ export const FieldChart = {
 
     const promise = this._fetchData(options, timeRangeParams);
     promise.then(
-      data => {
+      (data) => {
         const fieldGraph = this.fieldGraphs[graphId];
         if (fieldGraph) {
           const series = fieldGraph.series.filter(aSeries => aSeries.name === seriesName)[0];
           if (series) {
+            series.valuetype = GraphVisualization.getReadableFieldChartStatisticalFunction(options.valuetype);
             series.data = data.values;
             fieldGraph.update();
           }
         }
       },
-      error => {
+      (error) => {
         UserNotification.error(`Updating field graph data failed: ${error}`, 'Could not update field graph data');
-      }
+      },
     );
   },
 
+  _updateStatisticalFunctionText($graphContainer, graphOptions) {
+    jQuery('.type-description', $graphContainer).text(`[${GraphVisualization.getReadableFieldChartStatisticalFunction(graphOptions.valuetype)}] ${graphOptions.field}, `);
+  },
+
   renderNewFieldChart(options, graphContainer) {
-    this.renderFieldChart(options, graphContainer, {newGraph: true});
+    this.renderFieldChart(options, graphContainer, { newGraph: true });
   },
 
   changeInterpolation(graphContainer, interpolation) {
@@ -412,18 +419,19 @@ export const FieldChart = {
     this.updateFieldChartData(graphOptions.chartid, graphOptions, graphOptions.chartid);
   },
 
-  changeStatisticalFunction(graphContainer, statisticalFunction) {
-    const graphOptions = this._chartOptionsFromContainer(graphContainer);
+  changeStatisticalFunction($graphContainer, statisticalFunction) {
+    const graphOptions = this._chartOptionsFromContainer($graphContainer);
     graphOptions.valuetype = statisticalFunction;
-    this._changeGraphConfig(graphContainer, 'valuetype', statisticalFunction);
+    this._changeGraphConfig($graphContainer, 'valuetype', statisticalFunction);
     this.updateFieldChartData(graphOptions.chartid, graphOptions, graphOptions.chartid);
+    this._updateStatisticalFunctionText($graphContainer, graphOptions);
   },
 
   _mergeCharts(targetId, draggedId) {
     const targetChart = this.fieldGraphs[targetId];
     const draggedChart = this.fieldGraphs[draggedId];
 
-    const targetElem = jQuery('.field-graph-container[data-chart-id=\'' + targetId + '\']');
+    const targetElem = jQuery(`.field-graph-container[data-chart-id='${targetId}']`);
 
     for (let i = 0; i < draggedChart.series.length; i++) {
       const lineColor = this.palette.color();
@@ -435,17 +443,17 @@ export const FieldChart = {
       }
 
       // Add query to query list of chart.
-      const queryDescription = '<div class="field-graph-query-color" style="background-color: "' + lineColor + ';"></div> '
-        + '<span class="type-description">[' + StringUtils.escapeHTML(series.valuetype) + '] ' + series.field + ', </span> '
-        + 'Query: <span class="field-graph-query">' + StringUtils.escapeHTML(query) + '</span>';
+      const queryDescription = `<div class="field-graph-query-color" style="background-color: ${lineColor};"></div> `
+        + `<span class="type-description">[${StringUtils.escapeHTML(series.valuetype)}] ${series.field}, </span> `
+        + `Query: <span class="field-graph-query">${StringUtils.escapeHTML(query)}</span>`;
 
-      jQuery('ul.field-graph-query-container', targetElem).append('<li>' + queryDescription + '</li>');
+      jQuery('ul.field-graph-query-container', targetElem).append(`<li>${queryDescription}</li>`);
 
       const addSeries = {
         name: series.name,
         color: lineColor,
         gl2_query: query,
-        valuetype: GraphVisualization.getReadableFieldChartStatisticalFunction(series.valuetype),
+        valuetype: series.valuetype,
         field: series.field,
       };
 
@@ -465,23 +473,23 @@ export const FieldChart = {
 
   stackGraphs(targetGraphId, sourceGraphId) {
     this._mergeCharts(targetGraphId, sourceGraphId);
-    const sourceGraphElement = jQuery('.field-graph-container[data-chart-id="' + sourceGraphId + '"]');
+    const sourceGraphElement = jQuery(`.field-graph-container[data-chart-id="${sourceGraphId}"]`);
     sourceGraphElement.hide();
   },
 
   redraw(graphId) {
     const graph = this.fieldGraphs[graphId];
     if (graph) {
-      const $graphContainer = jQuery('.field-graph-container[data-chart-id="' + graphId + '"]');
+      const $graphContainer = jQuery(`.field-graph-container[data-chart-id="${graphId}"]`);
       const $graphElement = jQuery('.field-graph', $graphContainer);
-      graph.configure({width: $graphElement.width()});
+      graph.configure({ width: $graphElement.width() });
       graph.render();
     }
   },
 };
 
 // Changing type of value graphs.
-jQuery(document).on('click', '.field-graph-container ul.renderer-selector li a', function(e) {
+jQuery(document).on('click', '.field-graph-container ul.renderer-selector li a', function (e) {
   e.preventDefault();
 
   const graphContainer = jQuery(this).closest('.field-graph-container');
@@ -490,7 +498,7 @@ jQuery(document).on('click', '.field-graph-container ul.renderer-selector li a',
 });
 
 // Changing interpolation of value graphs.
-jQuery(document).on('click', '.field-graph-container ul.interpolation-selector li a', function(e) {
+jQuery(document).on('click', '.field-graph-container ul.interpolation-selector li a', function (e) {
   e.preventDefault();
 
   const graphContainer = jQuery(this).closest('.field-graph-container');
@@ -499,7 +507,7 @@ jQuery(document).on('click', '.field-graph-container ul.interpolation-selector l
 });
 
 // Changing interval of value graphs.
-jQuery(document).on('click', '.field-graph-container ul.interval-selector li a', function(e) {
+jQuery(document).on('click', '.field-graph-container ul.interval-selector li a', function (e) {
   e.preventDefault();
 
   const graphContainer = jQuery(this).closest('.field-graph-container');
@@ -508,7 +516,7 @@ jQuery(document).on('click', '.field-graph-container ul.interval-selector li a',
 });
 
 // Changing value type of value graphs.
-jQuery(document).on('click', '.field-graph-container ul.valuetype-selector li a', function(e) {
+jQuery(document).on('click', '.field-graph-container ul.valuetype-selector li a', function (e) {
   e.preventDefault();
 
   const graphContainer = jQuery(this).closest('.field-graph-container');

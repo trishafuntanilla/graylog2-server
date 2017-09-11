@@ -1,5 +1,6 @@
+import PropTypes from 'prop-types';
 import React from 'react';
-import { Input } from 'react-bootstrap';
+import { Input } from 'components/bootstrap';
 
 import StoreProvider from 'injection/StoreProvider';
 const PreferencesStore = StoreProvider.getStore('Preferences');
@@ -8,14 +9,14 @@ import BootstrapModalForm from 'components/bootstrap/BootstrapModalForm';
 
 const UserPreferencesModal = React.createClass({
   propTypes: {
-    userName: React.PropTypes.string.isRequired,
+    userName: PropTypes.string.isRequired,
   },
   getInitialState() {
     return { preferences: [] };
   },
   _onPreferenceChanged(event) {
     const name = event.target.name;
-    const preferenceToChange = this.state.preferences.filter((preference) => preference.name === name)[0];
+    const preferenceToChange = this.state.preferences.filter(preference => preference.name === name)[0];
     // TODO: we need the type of the preference to set it properly
     if (preferenceToChange) {
       preferenceToChange.value = event.target.value;

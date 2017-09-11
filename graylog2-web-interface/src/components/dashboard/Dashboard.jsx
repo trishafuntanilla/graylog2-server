@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
 import { DropdownButton, MenuItem } from 'react-bootstrap';
@@ -12,12 +13,11 @@ const DashboardsStore = StoreProvider.getStore('Dashboards');
 const StartpageStore = StoreProvider.getStore('Startpage');
 
 import Routes from 'routing/Routes';
-import ApiRoutes from 'routing/ApiRoutes';
 
 const Dashboard = React.createClass({
   propTypes: {
-    dashboard: React.PropTypes.object,
-    permissions: React.PropTypes.arrayOf(React.PropTypes.string),
+    dashboard: PropTypes.object,
+    permissions: PropTypes.arrayOf(PropTypes.string),
   },
   mixins: [PermissionsMixin, Reflux.connect(CurrentUserStore)],
   _setStartpage() {
@@ -38,11 +38,11 @@ const Dashboard = React.createClass({
       dashboardActions = (
         <div className="stream-actions">
           <EditDashboardModalTrigger id={this.props.dashboard.id} action="edit" title={this.props.dashboard.title}
-                                     description={this.props.dashboard.description} buttonClass="btn-info"/>
+                                     description={this.props.dashboard.description} buttonClass="btn-info" />
           &nbsp;
           <DropdownButton title="More actions" pullRight id={`more-actions-dropdown-${this.props.dashboard.id}`}>
             {setAsStartpageMenuItem}
-            <MenuItem divider/>
+            <MenuItem divider />
             <MenuItem onSelect={this._onDashboardDelete}>Delete this dashboard</MenuItem>
           </DropdownButton>
         </div>
@@ -61,7 +61,7 @@ const Dashboard = React.createClass({
   },
   render() {
     const createdFromContentPack = (this.props.dashboard.content_pack ?
-      <i className="fa fa-cube" title="Created from content pack"/> : null);
+      <i className="fa fa-cube" title="Created from content pack" /> : null);
 
     return (
       <li className="stream">

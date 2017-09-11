@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react';
-import {DropdownButton, MenuItem} from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { DropdownButton, MenuItem } from 'react-bootstrap';
 import ExtractorUtils from 'util/ExtractorUtils';
 
 const MessageFieldExtractorActions = React.createClass({
@@ -25,14 +26,30 @@ const MessageFieldExtractorActions = React.createClass({
     );
   },
   render() {
+    const messageField = this.props.message.fields[this.props.fieldName];
+    if (typeof messageField === 'string') {
+      return (
+        <div className="message-field-actions pull-right">
+          <DropdownButton pullRight
+                            bsSize="xsmall"
+                            title="Select extractor type"
+                            key={1}
+                            id={`select-extractor-type-dropdown-field-${this.props.fieldName}`}>
+            {ExtractorUtils.EXTRACTOR_TYPES.map(extractorType => this._formatExtractorMenuItem(extractorType))}
+          </DropdownButton>
+        </div>
+      );
+    }
     return (
       <div className="message-field-actions pull-right">
         <DropdownButton pullRight
-                     bsSize="xsmall"
-                     title="Select extractor type"
-                     key={1}
-                     id={`select-extractor-type-dropdown-field-${this.props.fieldName}`}>
-          {ExtractorUtils.EXTRACTOR_TYPES.map(extractorType => this._formatExtractorMenuItem(extractorType))}
+                              bsSize="xsmall"
+                              title="Select extractor type"
+                              key={1}
+                              id={`select-extractor-type-dropdown-field-${this.props.fieldName}`}>
+          <MenuItem key="select-extractor-type-disabled" disabled>
+                    Extractors can only be used with string fields.
+                </MenuItem>
         </DropdownButton>
       </div>
     );

@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import { Button, Modal } from 'react-bootstrap';
 import { LinkContainer } from 'react-router-bootstrap';
 import { PluginStore } from 'graylog-web-plugin/plugin';
@@ -72,7 +73,7 @@ const WidgetConfigModal = React.createClass({
       if (this.props.widget.config[key] !== null) {
         configListElements.push(<dt key={key}>{this._formatConfigurationKey(key)}:</dt>);
         configListElements.push(
-          <dd key={key + '-value'}>{this._formatConfigurationValue(key, this.props.widget.config[key])}</dd>
+          <dd key={`${key}-value`}>{this._formatConfigurationValue(key, this.props.widget.config[key])}</dd>,
         );
       }
     });

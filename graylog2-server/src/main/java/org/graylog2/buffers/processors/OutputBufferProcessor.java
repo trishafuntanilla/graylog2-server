@@ -160,6 +160,8 @@ public class OutputBufferProcessor implements WorkHandler<MessageEvent> {
         outputThroughput.inc();
 
         LOG.debug("Wrote message <{}> to all outputs. Finished handling.", msg.getId());
+
+        event.clearMessages();
     }
 
     private Future<?> processMessage(final Message msg, final MessageOutput defaultMessageOutput) {

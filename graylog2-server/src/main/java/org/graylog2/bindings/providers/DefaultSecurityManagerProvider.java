@@ -16,10 +16,8 @@
  */
 package org.graylog2.bindings.providers;
 
-import com.google.common.collect.Lists;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.Authenticator;
-import org.apache.shiro.authc.credential.HashedCredentialsMatcher;
 import org.apache.shiro.authc.pam.FirstSuccessfulStrategy;
 import org.apache.shiro.authc.pam.ModularRealmAuthenticator;
 import org.apache.shiro.authz.ModularRealmAuthorizer;
@@ -27,72 +25,38 @@ import org.apache.shiro.cache.MemoryConstrainedCacheManager;
 import org.apache.shiro.mgt.DefaultSecurityManager;
 import org.apache.shiro.mgt.DefaultSessionStorageEvaluator;
 import org.apache.shiro.mgt.DefaultSubjectDAO;
-import org.apache.shiro.realm.Realm;
 import org.apache.shiro.session.mgt.DefaultSessionManager;
 import org.apache.shiro.subject.Subject;
-import org.graylog2.Configuration;
 import org.graylog2.security.InMemoryRolePermissionResolver;
-import org.graylog2.security.MongoDbAuthorizationCacheManager;
 import org.graylog2.security.MongoDbSessionDAO;
-import org.graylog2.security.realm.AccessTokenAuthenticator;
-import org.graylog2.security.realm.GraylogSimpleAccountRealm;
-import org.graylog2.security.realm.LdapUserAuthenticator;
+import org.graylog2.security.OrderedAuthenticatingRealms;
 import org.graylog2.security.realm.MongoDbAuthorizationRealm;
-import org.graylog2.security.realm.PasswordAlgorithmCredentialsMatcher;
-import org.graylog2.security.realm.PasswordAuthenticator;
-import org.graylog2.security.realm.SessionAuthenticator;
+import org.graylog2.security.realm.RootAccountRealm;
 
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+import java.util.concurrent.TimeUnit;
+
+import static com.google.common.collect.ImmutableList.of;
 
 @Singleton
 public class DefaultSecurityManagerProvider implements Provider<DefaultSecurityManager> {
-    private static DefaultSecurityManager sm = null;
+    private DefaultSecurityManager sm = null;
 
     @Inject
     public DefaultSecurityManagerProvider(MongoDbSessionDAO mongoDbSessionDAO,
-                                          PasswordAuthenticator passwordAuthenticator,
                                           MongoDbAuthorizationRealm mongoDbAuthorizationRealm,
-                                          LdapUserAuthenticator ldapUserAuthenticator,
-                                          SessionAuthenticator sessionAuthenticator,
-                                          AccessTokenAuthenticator accessTokenAuthenticator,
-                                          Configuration configuration,
+                                          RootAccountRealm rootAccountRealm,
                                           InMemoryRolePermissionResolver inMemoryRolePermissionResolver,
-                                          MongoDbAuthorizationCacheManager mongoDbAuthorizationCacheManager,
-                                          PasswordAlgorithmCredentialsMatcher passwordAlgorithmCredentialsMatcher) {
-        final GraylogSimpleAccountRealm inMemoryRealm = new GraylogSimpleAccountRealm();
-        inMemoryRealm.setCachingEnabled(false);
-        inMemoryRealm.addRootAccount(
-                configuration.getRootUsername(),
-                configuration.getRootPasswordSha2()
-        );
-        inMemoryRealm.setCredentialsMatcher(new HashedCredentialsMatcher("SHA-256"));
-
-        passwordAuthenticator.setCachingEnabled(false);
-        passwordAuthenticator.setCredentialsMatcher(passwordAlgorithmCredentialsMatcher);
-        mongoDbAuthorizationRealm.setCachingEnabled(true);
-        mongoDbAuthorizationRealm.setCacheManager(mongoDbAuthorizationCacheManager);
-
-        ldapUserAuthenticator.setCachingEnabled(false);
-
-        sessionAuthenticator.setCachingEnabled(false);
-        accessTokenAuthenticator.setCachingEnabled(false);
-
-
-        sm = new DefaultSecurityManager(Lists.<Realm>newArrayList(
-                sessionAuthenticator,
-                accessTokenAuthenticator,
-                ldapUserAuthenticator,
-                passwordAuthenticator,
-                inMemoryRealm));
+                                          OrderedAuthenticatingRealms orderedAuthenticatingRealms) {
+        sm = new DefaultSecurityManager(orderedAuthenticatingRealms);
         final Authenticator authenticator = sm.getAuthenticator();
         if (authenticator instanceof ModularRealmAuthenticator) {
             ((ModularRealmAuthenticator) authenticator).setAuthenticationStrategy(new FirstSuccessfulStrategy());
         }
-        final ModularRealmAuthorizer authorizer = new ModularRealmAuthorizer(Lists.<Realm>newArrayList(
-                mongoDbAuthorizationRealm,
-                inMemoryRealm));
+        final ModularRealmAuthorizer authorizer = new ModularRealmAuthorizer(of(mongoDbAuthorizationRealm,
+                                                                                rootAccountRealm));
         authorizer.setRolePermissionResolver(inMemoryRolePermissionResolver);
         sm.setAuthorizer(authorizer);
 
@@ -101,7 +65,7 @@ public class DefaultSecurityManagerProvider implements Provider<DefaultSecurityM
             @Override
             public boolean isSessionStorageEnabled(Subject subject) {
                 // save to session if we already have a session. do not create on just for saving the subject
-                return (subject.getSession(false) != null);
+                return subject.getSession(false) != null;
             }
         };
         sessionStorageEvaluator.setSessionStorageEnabled(false);
@@ -111,6 +75,7 @@ public class DefaultSecurityManagerProvider implements Provider<DefaultSecurityM
         final DefaultSessionManager defaultSessionManager = (DefaultSessionManager) sm.getSessionManager();
         defaultSessionManager.setSessionDAO(mongoDbSessionDAO);
         defaultSessionManager.setDeleteInvalidSessions(true);
+        defaultSessionManager.setSessionValidationInterval(TimeUnit.MINUTES.toMillis(5));
         defaultSessionManager.setCacheManager(new MemoryConstrainedCacheManager());
         // DO NOT USE global session timeout!!! It's fucky.
         //defaultSessionManager.setGlobalSessionTimeout(TimeUnit.SECONDS.toMillis(5));

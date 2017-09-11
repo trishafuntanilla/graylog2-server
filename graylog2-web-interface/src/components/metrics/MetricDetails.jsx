@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
 import String from 'string';
@@ -12,7 +13,7 @@ import { CounterDetails, GaugeDetails, HistogramDetails, MeterDetails, TimerDeta
 
 const MetricDetails = React.createClass({
   propTypes: {
-    metric: React.PropTypes.object.isRequired,
+    metric: PropTypes.object.isRequired,
   },
   mixins: [Reflux.connect(MetricsStore)],
   componentDidMount() {
@@ -22,7 +23,7 @@ const MetricDetails = React.createClass({
     MetricsActions.remove(this.props.nodeId, this.props.metric.full_name);
   },
   _formatDetailsForType(type, metric) {
-    switch(type) {
+    switch (type) {
       case 'Counter':
         return <CounterDetails metric={metric} />;
       case 'Gauge':

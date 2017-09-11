@@ -16,6 +16,7 @@
  */
 package org.graylog2.plugin.inputs.codecs;
 
+import org.graylog2.plugin.AbstractDescriptor;
 import org.graylog2.plugin.Message;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.configuration.ConfigurationRequest;
@@ -36,15 +37,27 @@ public interface Codec {
     @Nonnull
     Configuration getConfiguration();
 
-    public interface Factory<C> {
+    interface Factory<C> {
         C create(Configuration configuration);
         Config getConfig();
+        Descriptor getDescriptor();
     }
 
-    public interface Config {
-        public static final String CK_OVERRIDE_SOURCE = "override_source";
+    interface Config {
+        String CK_OVERRIDE_SOURCE = "override_source";
 
         ConfigurationRequest getRequestedConfiguration();
         void overrideDefaultValues(@Nonnull ConfigurationRequest cr);
+    }
+
+    class Descriptor extends AbstractDescriptor {
+        public Descriptor() {
+            // We ensure old Codec plugins remain compatible by setting an empty name in here
+            this("");
+        }
+
+        protected Descriptor(String name) {
+            super(name, false, "");
+        }
     }
 }

@@ -1,6 +1,8 @@
-import React, {PropTypes} from 'react';
-import { Button, Input } from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Button } from 'react-bootstrap';
 
+import { Input } from 'components/bootstrap';
 import ObjectUtils from 'util/ObjectUtils';
 
 /**
@@ -52,7 +54,7 @@ const KeyValueTable = React.createClass({
     newPairs[this.state.newKey] = this.state.newValue;
     this._onPairsChange(newPairs);
 
-    this.setState({newKey: '', newValue: ''});
+    this.setState({ newKey: '', newValue: '' });
   },
 
   _deleteRow(key) {
@@ -87,14 +89,14 @@ const KeyValueTable = React.createClass({
   },
 
   _formattedRows(pairs) {
-    return Object.keys(pairs).sort().map(key => {
+    return Object.keys(pairs).sort().map((key) => {
       let actionsColumn;
       if (this.props.editable) {
         const actions = [];
         actions.push(
           <Button key={`delete-${key}`} bsStyle="danger" bsSize={this.props.actionsSize} onClick={this._deleteRow(key)}>
             Delete
-          </Button>
+          </Button>,
         );
 
         actionsColumn = <td>{actions}</td>;
@@ -120,11 +122,11 @@ const KeyValueTable = React.createClass({
       <tr>
         <td>
           <Input type="text" name="newKey" id="newKey" bsSize="small" placeholder={this.props.headers[0]} value={this.state.newKey}
-                 onChange={this._bindValue}/>
+                 onChange={this._bindValue} />
         </td>
         <td>
           <Input type="text" name="newValue" id="newValue" bsSize="small" placeholder={this.props.headers[1]}
-                 value={this.state.newValue} onChange={this._bindValue}/>
+                 value={this.state.newValue} onChange={this._bindValue} />
         </td>
         <td>
           <Button bsStyle="success" bsSize="small" onClick={this._addRow} disabled={addRowDisabled}>Add</Button>
@@ -140,8 +142,8 @@ const KeyValueTable = React.createClass({
           <table className={`table table-striped ${this.props.className}`}>
             <thead>{this._formattedHeaders(this.props.headers)}</thead>
             <tbody>
-            {this._formattedRows(this.props.pairs)}
-            {this._newRow()}
+              {this._formattedRows(this.props.pairs)}
+              {this._newRow()}
             </tbody>
           </table>
         </div>

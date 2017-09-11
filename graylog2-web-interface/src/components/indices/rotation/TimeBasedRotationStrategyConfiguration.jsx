@@ -1,12 +1,13 @@
+import PropTypes from 'prop-types';
 import React from 'react';
-import { Input } from 'react-bootstrap';
+import { Input } from 'components/bootstrap';
 import moment from 'moment';
 
 const TimeBasedRotationStrategyConfiguration = React.createClass({
   propTypes: {
-    config: React.PropTypes.object.isRequired,
-    jsonSchema: React.PropTypes.object.isRequired,
-    updateConfig: React.PropTypes.func.isRequired,
+    config: PropTypes.object.isRequired,
+    jsonSchema: PropTypes.object.isRequired,
+    updateConfig: PropTypes.func.isRequired,
   },
 
   getInitialState() {
@@ -43,9 +44,8 @@ const TimeBasedRotationStrategyConfiguration = React.createClass({
   _validationState() {
     if (this._isValidPeriod()) {
       return undefined;
-    } else {
-      return 'error';
     }
+    return 'error';
   },
 
   _formatDuration() {
@@ -63,7 +63,6 @@ const TimeBasedRotationStrategyConfiguration = React.createClass({
                help={'How long an index gets written to before it is rotated. (i.e. "P1D" for 1 day, "PT6H" for 6 hours)'}
                addonAfter={this._formatDuration()}
                bsStyle={this._validationState()}
-               autofocus
                required />
       </div>
     );

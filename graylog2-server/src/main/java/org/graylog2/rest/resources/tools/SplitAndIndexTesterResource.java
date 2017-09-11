@@ -18,10 +18,11 @@ package org.graylog2.rest.resources.tools;
 
 import com.codahale.metrics.annotation.Timed;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.inputs.extractors.SplitAndIndexExtractor;
-import org.graylog2.shared.rest.resources.RestResource;
-import org.graylog2.rest.models.tools.responses.SplitAndIndexTesterResponse;
 import org.graylog2.rest.models.tools.requests.SplitAndIndexTestRequest;
+import org.graylog2.rest.models.tools.responses.SplitAndIndexTesterResponse;
+import org.graylog2.shared.rest.resources.RestResource;
 
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
@@ -50,6 +51,7 @@ public class SplitAndIndexTesterResource extends RestResource {
     @Timed
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @NoAuditEvent("only used to test split and index extractor")
     public SplitAndIndexTesterResponse splitAndIndexTest(@Valid @NotNull SplitAndIndexTestRequest splitAndIndexTestRequest) {
         return doSplitAndIndexTest(splitAndIndexTestRequest.string(),
                 splitAndIndexTestRequest.splitBy(), splitAndIndexTestRequest.index());
@@ -59,6 +61,6 @@ public class SplitAndIndexTesterResource extends RestResource {
         final String cut = SplitAndIndexExtractor.cut(string, splitBy, index - 1);
         int[] positions = SplitAndIndexExtractor.getCutIndices(string, splitBy, index - 1);
 
-        return SplitAndIndexTesterResponse.create((cut != null), cut, positions[0], positions[1]);
+        return SplitAndIndexTesterResponse.create(cut != null, cut, positions[0], positions[1]);
     }
 }

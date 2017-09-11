@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import { Button } from 'react-bootstrap';
 import { ConfigurationForm } from 'components/configurationforms';
 
@@ -19,7 +20,7 @@ const EditOutputButton = React.createClass({
 
   handleClick() {
     this.props.getTypeDefinition(this.props.output.type, (definition) => {
-      this.setState({typeDefinition: definition.requested_configuration});
+      this.setState({ typeDefinition: definition.requested_configuration });
       this.refs.configurationForm.open();
     });
   },
@@ -39,8 +40,8 @@ const EditOutputButton = React.createClass({
                            configFields={this.state.typeDefinition}
                            title={`Editing Output ${output.title}`}
                            typeName={output.type}
-                           helpBlock={"Select a name of your new output that describes it."}
-                           submitAction={this._handleSubmit} values={output.configuration} titleValue={output.title}/>
+                           helpBlock={'Select a name of your new output that describes it.'}
+                           submitAction={this._handleSubmit} values={output.configuration} titleValue={output.title} />
       );
     }
 

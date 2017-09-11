@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react';
-import { Input } from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Input } from 'components/bootstrap';
 
 import { QueryConfiguration } from 'components/widgets/configurations';
 import StoreProvider from 'injection/StoreProvider';
@@ -13,7 +14,7 @@ const FieldChartWidgetConfiguration = React.createClass({
   render() {
     return (
       <fieldset>
-        <QueryConfiguration {...this.props}/>
+        <QueryConfiguration {...this.props} />
         <Input key="fieldChartStatisticalFunction"
                id="chart-statistical-function"
                name="valuetype"

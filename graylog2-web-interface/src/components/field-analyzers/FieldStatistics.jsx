@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
 import Immutable from 'immutable';
 import { Button } from 'react-bootstrap';
@@ -15,6 +16,11 @@ import UserNotification from 'util/UserNotification';
 const FieldStatistics = React.createClass({
   propTypes: {
     permissions: PropTypes.arrayOf(PropTypes.string).isRequired,
+    query: PropTypes.string.isRequired,
+    rangeType: PropTypes.string.isRequired,
+    rangeParams: PropTypes.object.isRequired,
+    stream: PropTypes.object,
+    forceFetch: PropTypes.bool,
   },
   mixins: [Reflux.listenTo(RefreshStore, '_setupTimer', '_setupTimer')],
 
@@ -25,6 +31,17 @@ const FieldStatistics = React.createClass({
       sortBy: 'field',
       sortDescending: false,
     };
+  },
+
+  componentWillReceiveProps(nextProps) {
+    // Reload values when executed search changes
+    if (this.props.query !== nextProps.query ||
+        this.props.rangeType !== nextProps.rangeType ||
+        JSON.stringify(this.props.rangeParams) !== JSON.stringify(nextProps.rangeParams) ||
+        this.props.stream !== nextProps.stream ||
+        nextProps.forceFetch) {
+      this._reloadAllStatistics();
+    }
   },
 
   WIDGET_TYPE: 'STATS_COUNT',
@@ -47,12 +64,12 @@ const FieldStatistics = React.createClass({
   },
 
   _reloadAllStatistics() {
-    this.state.fieldStatistics.keySeq().forEach((field) => this._reloadFieldStatistics(field));
+    this.state.fieldStatistics.keySeq().forEach(field => this._reloadFieldStatistics(field));
   },
 
   _reloadFieldStatistics(field) {
     if (this.isMounted) {
-      this.setState({statsLoadPending: this.state.statsLoadPending.set(field, true)});
+      this.setState({ statsLoadPending: this.state.statsLoadPending.set(field, true) });
       const promise = FieldStatisticsStore.getFieldStatistics(field);
       promise.then((statistics) => {
         this.setState({
@@ -67,7 +84,7 @@ const FieldStatistics = React.createClass({
             statsLoadPending: this.state.statsLoadPending.delete(field),
           });
         } else {
-          UserNotification.error('Loading field statistics failed with status: ' + error,
+          UserNotification.error(`Loading field statistics failed with status: ${error}`,
             'Could not load field statistics');
         }
       });
@@ -75,9 +92,9 @@ const FieldStatistics = React.createClass({
   },
   _changeSortOrder(column) {
     if (this.state.sortBy === column) {
-      this.setState({sortDescending: !this.state.sortDescending});
+      this.setState({ sortDescending: !this.state.sortDescending });
     } else {
-      this.setState({sortBy: column, sortDescending: false});
+      this.setState({ sortBy: column, sortDescending: false });
     }
   },
 
@@ -103,7 +120,7 @@ const FieldStatistics = React.createClass({
         const stats = this.state.fieldStatistics.get(field);
         let maybeSpinner = null;
         if (this.state.statsLoadPending.get(field)) {
-          maybeSpinner = <i className="fa fa-spin fa-spinner"></i>;
+          maybeSpinner = <i className="fa fa-spin fa-spinner" />;
         }
         statistics.push(
           <tr key={field}>
@@ -115,9 +132,9 @@ const FieldStatistics = React.createClass({
               if (formatNumber === 'NaN' || formatNumber === '-Infinity' || formatNumber === 'Infinity' || formatNumber === 'N/A') {
                 numberStyle.color = 'lightgray';
               }
-              return <td key={statFunction + '-td'}><span style={numberStyle}>{formatNumber}</span></td>;
+              return <td key={`${statFunction}-td`}><span style={numberStyle}>{formatNumber}</span></td>;
             })}
-          </tr>
+          </tr>,
         );
       });
 
@@ -126,7 +143,7 @@ const FieldStatistics = React.createClass({
   _renderStatisticalFunctionsHeaders() {
     return FieldStatisticsStore.FUNCTIONS.keySeq().map((statFunction) => {
       return (
-        <th key={statFunction + '-th'} onClick={() => this._changeSortOrder(statFunction)}>
+        <th key={`${statFunction}-th`} onClick={() => this._changeSortOrder(statFunction)}>
           {FieldStatisticsStore.FUNCTIONS.get(statFunction)} {this._getHeaderCaret(statFunction)}
         </th>
       );
@@ -136,7 +153,7 @@ const FieldStatistics = React.createClass({
     if (this.state.sortBy !== column) {
       return null;
     }
-    return this.state.sortDescending ? <i className="fa fa-caret-down"></i> : <i className="fa fa-caret-up"></i>;
+    return this.state.sortDescending ? <i className="fa fa-caret-down" /> : <i className="fa fa-caret-up" />;
   },
   render() {
     let content;
@@ -160,16 +177,16 @@ const FieldStatistics = React.createClass({
           <div className="table-responsive">
             <table className="table table-striped table-bordered table-hover table-condensed">
               <thead>
-              <tr>
-                <th style={{width: 24}}></th>
-                <th onClick={() => this._changeSortOrder('field')}>
+                <tr>
+                  <th style={{ width: 24 }} />
+                  <th onClick={() => this._changeSortOrder('field')}>
                   Field {this._getHeaderCaret('field')}
-                </th>
-                {this._renderStatisticalFunctionsHeaders()}
-              </tr>
+                  </th>
+                  {this._renderStatisticalFunctionsHeaders()}
+                </tr>
               </thead>
               <tbody>
-              {this._renderStatistics()}
+                {this._renderStatistics()}
               </tbody>
             </table>
           </div>
@@ -177,7 +194,7 @@ const FieldStatistics = React.createClass({
       );
     } else if (!this.state.statsLoadPending.isEmpty()) {
       content = (<div className="content-col">
-        <h1>Field Statistics <i className="fa fa-spin fa-spinner"></i></h1>
+        <h1>Field Statistics <i className="fa fa-spin fa-spinner" /></h1>
       </div>);
     }
 

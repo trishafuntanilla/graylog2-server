@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 
 import StreamRule from 'components/streamrules/StreamRule';
@@ -5,13 +6,12 @@ import { Spinner } from 'components/common';
 
 const StreamRuleList = React.createClass({
   propTypes: {
-    matchData: React.PropTypes.object,
-    onSubmit: React.PropTypes.func,
-    onDelete: React.PropTypes.func,
-    permissions: React.PropTypes.array.isRequired,
-    stream: React.PropTypes.object.isRequired,
-    streamRule: React.PropTypes.object.isRequired,
-    streamRuleTypes: React.PropTypes.array.isRequired,
+    matchData: PropTypes.object,
+    onSubmit: PropTypes.func,
+    onDelete: PropTypes.func,
+    permissions: PropTypes.array.isRequired,
+    stream: PropTypes.object.isRequired,
+    streamRuleTypes: PropTypes.array.isRequired,
   },
 
   _formatStreamRules(streamRules) {
@@ -20,7 +20,7 @@ const StreamRuleList = React.createClass({
         return (
           <StreamRule key={streamRule.id} permissions={this.props.permissions} matchData={this.props.matchData}
                       onSubmit={this.props.onSubmit} onDelete={this.props.onDelete}
-                      stream={this.props.stream} streamRule={streamRule} streamRuleTypes={this.props.streamRuleTypes}/>
+                      stream={this.props.stream} streamRule={streamRule} streamRuleTypes={this.props.streamRuleTypes} />
         );
       });
     }
@@ -36,7 +36,7 @@ const StreamRuleList = React.createClass({
       );
     }
     return (
-      <Spinner/>
+      <Spinner />
     );
   },
 });

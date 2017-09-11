@@ -17,6 +17,8 @@
 package org.graylog2;
 
 import com.github.joschi.jadconfig.Parameter;
+import com.github.joschi.jadconfig.ValidationException;
+import com.github.joschi.jadconfig.ValidatorMethod;
 import com.github.joschi.jadconfig.converters.TrimmedStringSetConverter;
 import com.github.joschi.jadconfig.util.Duration;
 import com.github.joschi.jadconfig.validators.DirectoryPathReadableValidator;
@@ -24,10 +26,10 @@ import com.github.joschi.jadconfig.validators.PositiveDurationValidator;
 import com.github.joschi.jadconfig.validators.PositiveIntegerValidator;
 import com.github.joschi.jadconfig.validators.PositiveLongValidator;
 import com.github.joschi.jadconfig.validators.StringNotBlankValidator;
-import org.graylog2.configuration.WebListenUriValidator;
+import com.github.joschi.jadconfig.validators.URIAbsoluteValidator;
 import org.graylog2.plugin.BaseConfiguration;
 import org.graylog2.utilities.IPSubnetConverter;
-import org.jboss.netty.handler.ipfilter.IpSubnet;
+import org.graylog2.utilities.IpSubnet;
 import org.joda.time.DateTimeZone;
 
 import java.net.URI;
@@ -36,9 +38,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.graylog2.plugin.Tools.getUriWithDefaultPath;
-import static org.graylog2.plugin.Tools.getUriWithPort;
-import static org.graylog2.plugin.Tools.getUriWithScheme;
+import static org.graylog2.plugin.Tools.normalizeURI;
 
 /**
  * Helper class to hold configuration of Graylog
@@ -51,10 +51,10 @@ public class Configuration extends BaseConfiguration {
     @Parameter(value = "password_secret", required = true, validator = StringNotBlankValidator.class)
     private String passwordSecret;
 
-    @Parameter(value = "rest_listen_uri", required = true)
-    private URI restListenUri = URI.create("http://127.0.0.1:" + GRAYLOG_DEFAULT_PORT + "/");
+    @Parameter(value = "rest_listen_uri", required = true, validator = URIAbsoluteValidator.class)
+    private URI restListenUri = URI.create("http://127.0.0.1:" + GRAYLOG_DEFAULT_PORT + "/api/");
 
-    @Parameter(value = "web_listen_uri", required = true, validator = WebListenUriValidator.class)
+    @Parameter(value = "web_listen_uri", required = true, validator = URIAbsoluteValidator.class)
     private URI webListenUri = URI.create("http://127.0.0.1:" + GRAYLOG_DEFAULT_WEB_PORT + "/");
 
     @Parameter(value = "output_batch_size", required = true, validator = PositiveIntegerValidator.class)
@@ -99,11 +99,11 @@ public class Configuration extends BaseConfiguration {
     @Parameter(value = "allow_highlighting")
     private boolean allowHighlighting = false;
 
-    @Parameter(value = "enable_metrics_collection")
-    private boolean metricsCollectionEnabled = false;
-
     @Parameter(value = "lb_recognition_period_seconds", validator = PositiveIntegerValidator.class)
     private int loadBalancerRecognitionPeriodSeconds = 3;
+
+    @Parameter(value = "lb_throttle_threshold_percentage", validator = PositiveIntegerValidator.class)
+    private int loadBalancerThrottleThresholdPercentage = 100;
 
     @Parameter(value = "stream_processing_timeout", validator = PositiveLongValidator.class)
     private long streamProcessingTimeout = 2000;
@@ -199,18 +199,19 @@ public class Configuration extends BaseConfiguration {
         return droolsRulesFile;
     }
 
+    @Override
     public String getNodeIdFile() {
         return nodeIdFile;
     }
 
     @Override
     public URI getRestListenUri() {
-        return getUriWithDefaultPath(getUriWithPort(getUriWithScheme(restListenUri, getRestUriScheme()), GRAYLOG_DEFAULT_PORT), "/");
+        return normalizeURI(restListenUri, getRestUriScheme(), GRAYLOG_DEFAULT_PORT, "/");
     }
 
     @Override
     public URI getWebListenUri() {
-        return getUriWithDefaultPath(getUriWithPort(getUriWithScheme(webListenUri, getWebUriScheme()), GRAYLOG_DEFAULT_WEB_PORT), "/");
+        return normalizeURI(webListenUri, getWebUriScheme(), GRAYLOG_DEFAULT_WEB_PORT, "/");
     }
 
     public String getRootUsername() {
@@ -235,10 +236,6 @@ public class Configuration extends BaseConfiguration {
 
     public boolean isAllowHighlighting() {
         return allowHighlighting;
-    }
-
-    public boolean isMetricsCollectionEnabled() {
-        return metricsCollectionEnabled;
     }
 
     public int getLoadBalancerRecognitionPeriodSeconds() {
@@ -313,5 +310,33 @@ public class Configuration extends BaseConfiguration {
         return indexRangesCleanupInterval;
     }
 
-    public Set<IpSubnet> getTrustedProxies() { return trustedProxies; }
+    public Set<IpSubnet> getTrustedProxies() {
+        return trustedProxies;
+    }
+
+    public int getLoadBalancerRequestThrottleJournalUsage() {
+        return loadBalancerThrottleThresholdPercentage;
+    }
+
+    @ValidatorMethod
+    @SuppressWarnings("unused")
+    public void validatePasswordSecret() throws ValidationException {
+        final String passwordSecret = getPasswordSecret();
+        if (passwordSecret == null || passwordSecret.length() < 16) {
+            throw new ValidationException("The minimum length for \"password_secret\" is 16 characters.");
+        }
+    }
+
+    @ValidatorMethod
+    @SuppressWarnings("unused")
+    public void validateNetworkInterfaces() throws ValidationException {
+        final URI restListenUri = getRestListenUri();
+        final URI webListenUri = getWebListenUri();
+
+        if (restListenUri.getPort() == webListenUri.getPort() &&
+                !restListenUri.getHost().equals(webListenUri.getHost()) &&
+                (WILDCARD_IP_ADDRESS.equals(restListenUri.getHost()) || WILDCARD_IP_ADDRESS.equals(webListenUri.getHost()))) {
+            throw new ValidationException("Wildcard IP addresses cannot be used if the Graylog REST API and web interface listen on the same port.");
+        }
+    }
 }

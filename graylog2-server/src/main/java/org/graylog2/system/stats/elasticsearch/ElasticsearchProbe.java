@@ -16,81 +16,93 @@
  */
 package org.graylog2.system.stats.elasticsearch;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Lists;
 import com.google.inject.Singleton;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.cluster.service.PendingClusterTask;
-import org.graylog2.indexer.indices.Indices;
+import io.searchbox.client.JestClient;
+import io.searchbox.client.JestResult;
+import io.searchbox.cluster.Health;
+import io.searchbox.cluster.PendingClusterTasks;
+import io.searchbox.cluster.Stats;
+import org.graylog2.indexer.IndexSetRegistry;
+import org.graylog2.indexer.cluster.jest.JestUtils;
 
 import javax.inject.Inject;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 @Singleton
 public class ElasticsearchProbe {
-    private final Client client;
-    private final Indices indices;
+    private final JestClient jestClient;
+    private final IndexSetRegistry indexSetRegistry;
 
     @Inject
-    public ElasticsearchProbe(Client client, Indices indices) {
-        this.client = client;
-        this.indices = indices;
+    public ElasticsearchProbe(JestClient jestClient, IndexSetRegistry indexSetRegistry) {
+        this.jestClient = jestClient;
+        this.indexSetRegistry = indexSetRegistry;
     }
 
     public ElasticsearchStats elasticsearchStats() {
-        final ClusterAdminClient adminClient = client.admin().cluster();
+        final JestResult clusterStatsResponse = JestUtils.execute(jestClient, new Stats.Builder().build(), () -> "Couldn't read Elasticsearch cluster stats");
+        final JsonNode clusterStatsResponseJson = clusterStatsResponse.getJsonObject();
+        final String clusterName = clusterStatsResponseJson.path("cluster_name").asText();
 
-        final ClusterStatsResponse clusterStatsResponse = adminClient.clusterStats(new ClusterStatsRequest()).actionGet();
-        final String clusterName = clusterStatsResponse.getClusterNameAsString();
+        final JsonNode countStats = clusterStatsResponseJson.path("nodes").path("count");
 
-        final ClusterStatsNodes clusterNodesStats = clusterStatsResponse.getNodesStats();
         final NodesStats nodesStats = NodesStats.create(
-                clusterNodesStats.getCounts().getTotal(),
-                clusterNodesStats.getCounts().getMasterOnly(),
-                clusterNodesStats.getCounts().getDataOnly(),
-                clusterNodesStats.getCounts().getMasterData(),
-                clusterNodesStats.getCounts().getClient()
+                countStats.path("total").asInt(-1),
+                countStats.path("master_only").asInt(-1),
+                countStats.path("data_only").asInt(-1),
+                countStats.path("master_data").asInt(-1),
+                countStats.path("client").asInt(-1)
         );
 
+        final JsonNode clusterIndicesStats = clusterStatsResponseJson.path("indices");
         final IndicesStats indicesStats = IndicesStats.create(
-                clusterStatsResponse.getIndicesStats().getIndexCount(),
-                clusterStatsResponse.getIndicesStats().getStore().sizeInBytes(),
-                clusterStatsResponse.getIndicesStats().getFieldData().getMemorySizeInBytes()
+                clusterIndicesStats.path("count").asInt(-1),
+                clusterIndicesStats.path("store").path("size_in_bytes").asLong(-1L),
+                clusterIndicesStats.path("fielddata").path("memory_size_in_bytes").asLong(-1L)
         );
 
-        final PendingClusterTasksResponse pendingClusterTasksResponse = adminClient.pendingClusterTasks(new PendingClusterTasksRequest()).actionGet();
-        final int pendingTasksSize = pendingClusterTasksResponse.pendingTasks().size();
+        final JestResult pendingClusterTasksResponse = JestUtils.execute(jestClient, new PendingClusterTasks.Builder().build(), () -> "Couldn't read Elasticsearch pending cluster tasks");
+        final JsonNode pendingClusterTasks = pendingClusterTasksResponse.getJsonObject().path("tasks");
+        final int pendingTasksSize = pendingClusterTasks.size();
         final List<Long> pendingTasksTimeInQueue = Lists.newArrayListWithCapacity(pendingTasksSize);
-        for (PendingClusterTask pendingClusterTask : pendingClusterTasksResponse) {
-            pendingTasksTimeInQueue.add(pendingClusterTask.getTimeInQueueInMillis());
+        for (JsonNode jsonElement : pendingClusterTasks) {
+            if (jsonElement.has("time_in_queue_millis")) {
+                pendingTasksTimeInQueue.add(jsonElement.get("time_in_queue_millis").asLong());
+            }
         }
 
-        final ClusterHealthResponse clusterHealthResponse = adminClient.health(new ClusterHealthRequest(indices.allIndicesAlias())).actionGet();
+        final Health clusterHealthRequest = new Health.Builder()
+                .addIndex(Arrays.asList(indexSetRegistry.getIndexWildcards()))
+                .build();
+        final JestResult clusterHealthResponse = JestUtils.execute(jestClient, clusterHealthRequest, () -> "Couldn't read Elasticsearch cluster health");
+        final JsonNode clusterHealthJson = clusterHealthResponse.getJsonObject();
         final ClusterHealth clusterHealth = ClusterHealth.create(
-                clusterHealthResponse.getNumberOfNodes(),
-                clusterHealthResponse.getNumberOfDataNodes(),
-                clusterHealthResponse.getActiveShards(),
-                clusterHealthResponse.getRelocatingShards(),
-                clusterHealthResponse.getActivePrimaryShards(),
-                clusterHealthResponse.getInitializingShards(),
-                clusterHealthResponse.getUnassignedShards(),
-                clusterHealthResponse.isTimedOut(),
+                clusterHealthJson.path("number_of_nodes").asInt(-1),
+                clusterHealthJson.path("number_of_data_nodes").asInt(-1),
+                clusterHealthJson.path("active_shards").asInt(-1),
+                clusterHealthJson.path("relocating_shards").asInt(-1),
+                clusterHealthJson.path("active_primary_shards").asInt(-1),
+                clusterHealthJson.path("initializing_shards").asInt(-1),
+                clusterHealthJson.path("unassigned_shards").asInt(-1),
+                clusterHealthJson.path("timed_out").asBoolean(),
                 pendingTasksSize,
                 pendingTasksTimeInQueue
         );
+        final ElasticsearchStats.HealthStatus healthStatus = getHealthStatus(clusterHealthJson.path("status").asText("RED"));
 
         return ElasticsearchStats.create(
                 clusterName,
-                clusterHealthResponse.getStatus(),
+                healthStatus,
                 clusterHealth,
                 nodesStats,
                 indicesStats);
+    }
+
+    private ElasticsearchStats.HealthStatus getHealthStatus(String status) {
+        return ElasticsearchStats.HealthStatus.valueOf(status.toUpperCase(Locale.ENGLISH));
     }
 }

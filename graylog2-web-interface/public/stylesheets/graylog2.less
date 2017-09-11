@@ -17,6 +17,10 @@ ul {
   margin: 0;
 }
 
+ul.no-padding {
+  padding: 0;
+}
+
 hr {
   border-top: 1px solid #e3e3e3;
 }
@@ -209,6 +213,11 @@ legend small {
 
 #sidebar .actions>div {
   margin: 5px 5px 0 0;
+}
+
+#sidebar hr {
+  margin-top: 15px;
+  margin-bottom: 10px;
 }
 
 #main-row {
@@ -1041,28 +1050,7 @@ td.limited {
   color: #333333;
   height: 100%;
   margin: 0;
-  overflow: auto;
   width: 100%;
-}
-
-.dashboard .gridster .gs-w {
-  background-color: #FFF;
-  border: 1px solid #D1D1D1;
-  z-index: auto;
-}
-
-.dashboard .gridster .player {
-  border-style: dashed;
-  border-color: #D1D1D1;
-}
-
-.dashboard .gridster .preview-holder {
-  border: none !important;
-  background: #16ACE3 !important;
-}
-
-.dashboard .gridster .resize-preview-holder {
-  z-index: -1;
 }
 
 .dashboard .widget {
@@ -1164,19 +1152,6 @@ td.limited {
 
 .tooltip .tooltip-inner .datapoint-info .date {
   color: #E3E5E5;
-}
-
-.dashboard .gridster {
-  margin-left: -10px;
-  transition: none;
-}
-
-.dashboard .gridster .widget {
-  cursor: move;
-}
-
-.dashboard .gridster.gs-resize-disabled .widget {
-  cursor: default;
 }
 
 .dashboard .widget .dc-chart {
@@ -1601,6 +1576,11 @@ table .dc-table-column {
   width: 200px;
 }
 
+.alert-type-form input.alert-type-title {
+  width: 300px;
+}
+
+
 .add-alert-destination-type {
   margin-bottom: 0px;
 }
@@ -1694,7 +1674,7 @@ input.required-input-highlight {
 }
 
 .result-highlight-colored {
-  background-color: #fffcb0;
+  background-color: #ffec3d;
 }
 
 .result-highlight-control label {
@@ -2138,6 +2118,7 @@ span.blob {
 
 #message-table-paginator-bottom {
   height: 75px;
+  margin-top: 20px;
 }
 
 #message-table-paginator-bottom nav {
@@ -2159,16 +2140,63 @@ span.blob {
   border: 0;
 }
 
+.search-results-table {
+  border-left: 2px solid #e3e3e3;
+  margin-left: -13px;
+  overflow-y: auto;
+}
+
+.search-results-table > div {
+  border-left: 1px solid #D1D1D1;
+}
+
+.messages-container {
+  padding-right: 13px;
+  width: 100%;
+}
+
+table.messages {
+  position: relative;
+  font-size: 11px;
+  margin-top: 15px;
+  margin-bottom: 60px;
+  border-collapse: collapse;
+  padding-left: 13px;
+  width: 100%;
+  word-break: break-all;
+}
+
+table.messages thead > tr {
+  color: #fff;
+}
+
+table.messages td, table.messages th {
+  position: relative;
+  left: 13px;
+}
+
+table.messages > thead th {
+  border: 0;
+  font-size: 11px;
+  font-weight: normal;
+  background-color: #222;
+  white-space: nowrap;
+}
+
+table.messages tr {
+  border: 0 !important;
+}
+
 table.messages tbody.message-group {
   border-top: 0;
 }
 
 table.messages tbody.message-group-toggled {
-  border-left: 5px solid #16ace3;
+  border-left: 7px solid #16ace3;
 }
 
 table.messages tbody.message-highlight {
-  border-left: 5px solid #8dc63f;
+  border-left: 7px solid #8dc63f;
 }
 
 table.messages tr.fields-row {
@@ -2219,6 +2247,29 @@ table.messages tr.message-detail-row td {
   border-top: 0;
 }
 
+table.messages tr.message-detail-row .row {
+  margin-right: 0;
+}
+
+table.messages tr.message-detail-row div[class*="col-"] {
+  padding-right: 0;
+}
+
+.message-details-title {
+  height: 30px;
+}
+
+.message-details-title a {
+  color: #000;
+}
+
+.message-details-title .label {
+  font-size: 50%;
+  line-height: 200%;
+  margin-left: 5px;
+  vertical-align: bottom;
+}
+
 dl.message-details {
   margin-top: 10px;
   margin-bottom: 0;
@@ -2235,7 +2286,7 @@ dl.message-details dd {
   margin-left: 1px; /* Ensures that italic text is not cut */
 }
 
-dl.message-details-fields dd:not(:last-child) {
+dl.message-details-fields span:not(:last-child) dd {
   border-bottom: 1px solid #ececec;
 }
 
@@ -2261,37 +2312,6 @@ dl.message-details dd.stream-list ul li {
   margin-top: 3px;
 }
 
-table.messages {
-  position: static;
-  margin-left: -13px;
-  font-size: 11px;
-  margin-top: 15px;
-  border-collapse: collapse;
-  width: 100%;
-  word-break: break-all;
-}
-
-table.messages thead > tr {
-  color: #fff;
-}
-
-table.messages td, table.messages th {
-  position: relative;
-  left: 13px;
-}
-
-table.messages > thead th {
-  border: 0;
-  font-size: 11px;
-  font-weight: normal;
-  background-color: #222;
-  white-space: nowrap;
-}
-
-table.messages tr {
-  border: 0 !important;
-}
-
 dl.message-details dd div.message-field-actions {
   padding-left: 10px;
   position: relative;
@@ -2302,15 +2322,6 @@ dl.message-details dd div.message-field-actions {
   opacity: 0.5; /* Safari, Opera */
   -moz-opacity:0.50; /* FireFox */
   z-index: 20;
-}
-
-// this overrides the .table-responsive overflow-x to be able to show the blue message-group-toggled bar
-// if there's enough space. For lower widths we don't care about showing the bar (it's outside of the table's container,
-// so it triggers the overflox-x scroll behavior).
-@media(min-width: 600px) {
-  .table-responsive {
-    overflow-x: visible;
-  }
 }
 
 div#navigation-bar ul.dropdown-menu li a {
@@ -2692,9 +2703,10 @@ ul.pill-list > li {
   height: 1000px;
 }
 
-.sortable-list {
+.sortable-list-cursor {
   cursor: move;
-
+}
+.sortable-list {
   .dragging {
     opacity: 0.5;
   }
@@ -2727,4 +2739,12 @@ ul.pill-list > li {
 .field-analyzer {
   margin-left: 0 !important;
   margin-top: 10px !important;
+}
+
+.save-button-margin {
+  margin-right: 5px;
+}
+
+.form-control.message-id-input {
+  width: 300px;
 }

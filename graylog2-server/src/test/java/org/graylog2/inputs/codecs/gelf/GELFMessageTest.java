@@ -22,12 +22,8 @@ import org.junit.Test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
-/**
- * @author lennart.koopmann
- */
 public class GELFMessageTest {
-
-    public final static String GELF_JSON = "{\"message\":\"foo\",\"host\":\"bar\",\"_lol_utf8\":\"\u00FC\"}";
+    private static final String GELF_JSON = "{\"version\": \"1.1\", \"message\":\"foobar\",\"host\":\"example.com\",\"_lol_utf8\":\"\u00FC\"}";
 
     @Test
     public void testGetGELFTypeDetectsZLIBCompressedMessage() throws Exception {
@@ -71,14 +67,16 @@ public class GELFMessageTest {
 
     @Test
     public void testGetJSONFromZLIBCompressedMessage() throws Exception {
-        GELFMessage msg = new GELFMessage(TestHelper.zlibCompress(GELF_JSON));
-        assertEquals(GELF_JSON, msg.getJSON());
+        for (int level = -1; level <= 9; level++) {
+            final GELFMessage msg = new GELFMessage(TestHelper.zlibCompress(GELF_JSON, level));
+            assertEquals(GELF_JSON, msg.getJSON(1024));
+        }
     }
 
     @Test
     public void testGetJSONFromGZIPCompressedMessage() throws Exception {
         GELFMessage msg = new GELFMessage(TestHelper.gzipCompress(GELF_JSON));
-        assertEquals(GELF_JSON, msg.getJSON());
+        assertEquals(GELF_JSON, msg.getJSON(1024));
     }
 
     @Test
@@ -86,7 +84,7 @@ public class GELFMessageTest {
         byte[] text = GELF_JSON.getBytes("UTF-8");
 
         GELFMessage msg = new GELFMessage(text);
-        assertEquals(GELF_JSON, msg.getJSON());
+        assertEquals(GELF_JSON, msg.getJSON(1024));
     }
 
     @Test
@@ -98,11 +96,10 @@ public class GELFMessageTest {
 
         GELFMessage msg = new GELFMessage(TestHelper.buildGELFMessageChunk(id, seqNum, seqCnt, data));
         GELFMessageChunk chunk = new GELFMessageChunk(msg, null);
-        
+
         assertEquals(TestHelper.toHex(id), chunk.getId());
         assertEquals(seqNum, chunk.getSequenceNumber());
         assertEquals(seqCnt, chunk.getSequenceCount());
         assertArrayEquals(data, chunk.getData());
     }
-
 }

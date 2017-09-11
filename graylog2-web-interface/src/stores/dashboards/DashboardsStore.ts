@@ -1,17 +1,15 @@
-/// <reference path='../../../node_modules/immutable/dist/immutable.d.ts'/>
-/// <reference path='../../routing/ApiRoutes.d.ts' />
-/// <reference path="../../../declarations/bluebird/bluebird.d.ts" />
-
 import Immutable = require('immutable');
 const UserNotification = require('util/UserNotification');
 import ApiRoutes = require('routing/ApiRoutes');
 const URLUtils = require('util/URLUtils');
 const Builder = require('logic/rest/FetchProvider').Builder;
+const fetchPeriodically = require('logic/rest/FetchProvider').fetchPeriodically;
 const fetch = require('logic/rest/FetchProvider').default;
 const PermissionsMixin = require('util/PermissionsMixin');
 
 const StoreProvider = require('injection/StoreProvider');
 const CurrentUserStore = StoreProvider.getStore('CurrentUser');
+const SessionStore = StoreProvider.getStore('Session');
 
 interface Dashboard {
   id: string;
@@ -27,8 +25,19 @@ class DashboardsStore {
   private _onDashboardsChanged: {(dashboards: Immutable.List<Dashboard>): void; }[] = [];
 
   constructor() {
+    this._initializeDashboards();
+    SessionStore.listen(this.onSessionChange, this);
+  }
+
+  _initializeDashboards() {
     this._dashboards = Immutable.List<Dashboard>();
     this._writableDashboards = Immutable.Map<string, Dashboard>();
+  }
+
+  onSessionChange() {
+    if (!SessionStore.isLoggedIn()) {
+      this._initializeDashboards();
+    }
   }
 
   get dashboards(): Immutable.List<Dashboard> {
@@ -108,11 +117,7 @@ class DashboardsStore {
 
   get(id: string): Promise<Dashboard> {
     const url = URLUtils.qualifyUrl(ApiRoutes.DashboardsApiController.get(id).url);
-    const promise = new Builder('GET', url)
-      .authenticated()
-      .setHeader('X-Graylog-No-Session-Extension', 'true')
-      .json()
-      .build();
+    const promise = fetchPeriodically('GET', url);
 
     promise.catch((error) => {
       if (error.additional.status !== 404) {

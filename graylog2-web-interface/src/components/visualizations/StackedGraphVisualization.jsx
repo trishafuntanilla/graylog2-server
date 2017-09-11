@@ -1,9 +1,11 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
 import Immutable from 'immutable';
 import numeral from 'numeral';
 import c3 from 'c3';
 import d3 from 'd3';
+import deepEqual from 'deep-equal';
 
 import D3Utils from 'util/D3Utils';
 import DateTime from 'logic/datetimes/DateTime';
@@ -34,6 +36,10 @@ const StackedGraphVisualization = React.createClass({
     this.drawData();
   },
   componentWillReceiveProps(nextProps) {
+    if (deepEqual(this.props, nextProps)) {
+      return;
+    }
+
     if (nextProps.height !== this.props.height || nextProps.width !== this.props.width) {
       this._resizeVisualization(nextProps.width, nextProps.height);
     }
@@ -63,9 +69,9 @@ const StackedGraphVisualization = React.createClass({
     let mergedSeries = Immutable.Map();
 
     series.forEach((aSeries, idx) => {
-      aSeries.forEach(seriesPoint => {
+      aSeries.forEach((seriesPoint) => {
         const timestamp = seriesPoint.x;
-        const mergedDataPoint = Immutable.Map({timestamp: timestamp}).set(`series${idx + 1}`, seriesPoint.y);
+        const mergedDataPoint = Immutable.Map({ timestamp: timestamp }).set(`series${idx + 1}`, seriesPoint.y);
         if (mergedSeries.has(timestamp)) {
           mergedSeries = mergedSeries.set(timestamp, mergedSeries.get(timestamp).merge(mergedDataPoint));
         } else {
@@ -138,7 +144,7 @@ const StackedGraphVisualization = React.createClass({
     let newSeriesNames = Immutable.Map();
     this.props.config.series.forEach((seriesConfig) => {
       i++;
-      const seriesName = 'series' + i;
+      const seriesName = `series${i}`;
       newSeriesNames = newSeriesNames.set(seriesName, `${seriesConfig.statistical_function} ${seriesConfig.field}, "${seriesConfig.query}"`);
     }, this);
 
@@ -154,7 +160,7 @@ const StackedGraphVisualization = React.createClass({
     // Generate custom tick values for the time axis
     this.graph.internal.config.axis_x_tick_values = graphHelper.customTickInterval()(
       this.dataPoints.first().get('timestamp') - 1000,
-      this.dataPoints.last().get('timestamp') + 1000
+      this.dataPoints.last().get('timestamp') + 1000,
     );
 
     this.graph.load({
@@ -175,7 +181,7 @@ const StackedGraphVisualization = React.createClass({
 
     this.props.config.series.forEach((seriesConfig) => {
       i++;
-      const seriesName = 'series' + i;
+      const seriesName = `series${i}`;
       this.series = this.series.push(seriesName);
       this.seriesNames = this.seriesNames.set(seriesName, `${seriesConfig.statistical_function} ${seriesConfig.field}, "${seriesConfig.query}"`);
       colours = colours.set(seriesName, colourPalette(seriesName));
@@ -243,7 +249,7 @@ const StackedGraphVisualization = React.createClass({
   },
   render() {
     return (
-      <div id={'visualization-' + this.props.id} className={'graph ' + this.props.config.renderer}/>
+      <div id={`visualization-${this.props.id}`} className={`graph ${this.props.config.renderer}`} />
     );
   },
 });

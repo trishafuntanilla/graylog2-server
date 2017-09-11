@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { Alert } from 'react-bootstrap';
 
@@ -6,11 +7,12 @@ import PermissionsMixin from 'util/PermissionsMixin';
 
 const StreamList = React.createClass({
   propTypes: {
-    streams: React.PropTypes.array.isRequired,
-    streamRuleTypes: React.PropTypes.array.isRequired,
-    user: React.PropTypes.object.isRequired,
-    permissions: React.PropTypes.array.isRequired,
-    onStreamSave: React.PropTypes.func.isRequired,
+    streams: PropTypes.array.isRequired,
+    streamRuleTypes: PropTypes.array.isRequired,
+    indexSets: PropTypes.array.isRequired,
+    user: PropTypes.object.isRequired,
+    permissions: PropTypes.array.isRequired,
+    onStreamSave: PropTypes.func.isRequired,
   },
   mixins: [PermissionsMixin],
 
@@ -20,8 +22,8 @@ const StreamList = React.createClass({
 
   _formatStream(stream) {
     return (
-      <Stream key={'stream-' + stream.id} stream={stream} streamRuleTypes={this.props.streamRuleTypes}
-                   permissions={this.props.permissions} user={this.props.user}/>
+      <Stream key={`stream-${stream.id}`} stream={stream} streamRuleTypes={this.props.streamRuleTypes}
+                   permissions={this.props.permissions} user={this.props.user} indexSets={this.props.indexSets} />
     );
   },
 
@@ -38,13 +40,12 @@ const StreamList = React.createClass({
           {streamList}
         </ul>
       );
-    } else {
-      return (
-        <Alert bsStyle="info">
-          <i className="fa fa-info-circle"/>&nbsp;No streams match your search filter.
-        </Alert>
-      );
     }
+    return (
+      <Alert bsStyle="info">
+        <i className="fa fa-info-circle" />&nbsp;No streams match your search filter.
+        </Alert>
+    );
   },
 });
 

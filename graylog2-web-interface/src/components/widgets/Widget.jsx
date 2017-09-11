@@ -1,10 +1,8 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
 import $ from 'jquery';
-import Qs from 'qs';
 import { PluginStore } from 'graylog-web-plugin/plugin';
-
-import URLUtils from 'util/URLUtils';
 
 import { WidgetConfigModal, WidgetEditConfigModal, WidgetFooter, WidgetHeader, WidgetVisualizationNotFound } from 'components/widgets';
 
@@ -14,12 +12,16 @@ const WidgetsStore = StoreProvider.getStore('Widgets');
 import ActionsProvider from 'injection/ActionsProvider';
 const WidgetsActions = ActionsProvider.getActions('Widgets');
 
+import Routes from 'routing/Routes';
+import EventHandlersThrottler from 'util/EventHandlersThrottler';
+
 const Widget = React.createClass({
   propTypes: {
     widget: PropTypes.object.isRequired,
     dashboardId: PropTypes.string.isRequired,
     shouldUpdate: PropTypes.bool.isRequired,
     locked: PropTypes.bool.isRequired,
+    streamIds: PropTypes.object,
   },
   getInitialState() {
     this.widgetPlugin = this._getWidgetPlugin(this.props.widget.type);
@@ -35,7 +37,14 @@ const Widget = React.createClass({
   componentDidMount() {
     this._loadValue();
     this.loadValueInterval = setInterval(this._loadValue, Math.min(this.props.widget.cache_time * 1000, this.DEFAULT_WIDGET_VALUE_REFRESH));
-    $(document).on('gridster:resizestop', () => this._calculateWidgetSize());
+
+    // We need an instance per element of the widget component, so all elements get resized
+    this.eventsThrottler = new EventHandlersThrottler();
+
+    // We need to handle the event using jQuery, as the native `addEventListener` does not allow the same function
+    // to be used as event handler more than once. This means that when n widgets are mounted, the same function
+    // is going to be called n times on the same widget, resulting in a single widget being updated n times.
+    $(window).on('resize', this._onResize);
   },
   componentWillReceiveProps(nextProps) {
     this.widgetPlugin = this._getWidgetPlugin(nextProps.widget.type);
@@ -45,7 +54,7 @@ const Widget = React.createClass({
   },
   componentWillUnmount() {
     clearInterval(this.loadValueInterval);
-    $(document).off('gridster:resizestop', () => this._calculateWidgetSize());
+    $(window).off('resize', this._onResize);
   },
 
   DEFAULT_WIDGET_VALUE_REFRESH: 10 * 1000,
@@ -63,13 +72,18 @@ const Widget = React.createClass({
     return ReactDOM.findDOMNode(this.refs.widget);
   },
   _loadValue() {
-    if (!this.props.shouldUpdate) {
+    if (this.state.deleted || (this.state.result !== undefined && !this.props.shouldUpdate)) {
       return;
     }
 
     const width = this.refs.widget.clientWidth;
 
     WidgetsStore.loadValue(this.props.dashboardId, this.props.widget.id, width).then((value) => {
+      // Avoid updating state if the result didn't change
+      if (value.calculated_at === this.state.calculatedAt) {
+        return;
+      }
+
       const newState = {
         result: value.result,
         calculatedAt: value.calculated_at,
@@ -92,6 +106,9 @@ const Widget = React.createClass({
       });
     });
   },
+  _onResize() {
+    this.eventsThrottler.throttle(this._calculateWidgetSize, undefined, this.props.widget.id);
+  },
   _calculateWidgetSize() {
     const $widgetNode = $(this._getWidgetNode());
     // .height() give us the height of the whole widget without counting paddings, we need to remove the size
@@ -110,7 +127,7 @@ const Widget = React.createClass({
     if (this.state.result === undefined) {
       return (
         <div className="loading">
-          <i className="fa fa-spin fa-3x fa-refresh spinner"/>
+          <i className="fa fa-spin fa-3x fa-refresh spinner" />
         </div>
       );
     }
@@ -120,7 +137,7 @@ const Widget = React.createClass({
     }
 
     if (!this.widgetPlugin) {
-      return <WidgetVisualizationNotFound widgetClassName={this.props.widget.type}/>;
+      return <WidgetVisualizationNotFound widgetClassName={this.props.widget.type} />;
     }
 
     return React.createElement(this.widgetPlugin.visualizationComponent, {
@@ -132,48 +149,37 @@ const Widget = React.createClass({
       computationTimeRange: this.state.computationTimeRange,
     });
   },
-  _getUrlPath() {
-    if (this._isBoundToStream()) {
-      return `/streams/${this.props.widget.config.stream_id}/search`;
-    }
-
-    return '/search';
-  },
-  _getUrlQueryString() {
+  _getTimeRange() {
     const config = this.props.widget.config;
     const rangeType = config.timerange.type;
 
-    const query = {
-      q: config.query,
+    const timeRange = {
       rangetype: rangeType,
-      interval: config.interval,
     };
     switch (rangeType) {
       case 'relative':
-        query[rangeType] = config.timerange.range;
+        timeRange[rangeType] = config.timerange.range;
         break;
       case 'absolute':
-        query.from = config.timerange.from;
-        query.to = config.timerange.to;
+        timeRange.from = config.timerange.from;
+        timeRange.to = config.timerange.to;
         break;
       case 'keyword':
-        query[rangeType] = config.timerange.keyword;
+        timeRange[rangeType] = config.timerange.keyword;
         break;
       default:
-        // do nothing
+      // do nothing
     }
 
-    return Qs.stringify(query);
+    return timeRange;
   },
   replayUrl() {
-    // TODO: replace with react router link
-    const path = this._getUrlPath();
-    const queryString = this._getUrlQueryString();
+    const config = this.props.widget.config;
+    if (this._isBoundToStream()) {
+      return Routes.stream_search(this.props.widget.config.stream_id, config.query, this._getTimeRange(), config.interval);
+    }
 
-    return URLUtils.appPrefixed(path + '?' + queryString);
-  },
-  _replaySearch(e) {
-    URLUtils.openLink(this.replayUrl(), e.metaKey || e.ctrlKey);
+    return Routes.search(config.query, this._getTimeRange(), config.interval);
   },
   _showConfig() {
     this.refs.configModal.open();
@@ -188,43 +194,49 @@ const Widget = React.createClass({
   },
   deleteWidget() {
     if (window.confirm(`Do you really want to delete "${this.props.widget.description}"?`)) {
-      this.setState({deleted: true});
+      this.setState({ deleted: true });
       WidgetsActions.removeWidget(this.props.dashboardId, this.props.widget.id);
     }
   },
   render() {
     if (this.state.deleted) {
-      return <span/>;
+      return <span />;
     }
     const showConfigModal = (
       <WidgetConfigModal ref="configModal"
                          dashboardId={this.props.dashboardId}
                          widget={this.props.widget}
-                         boundToStream={this._isBoundToStream()}/>
+                         boundToStream={this._isBoundToStream()} />
     );
 
     const editConfigModal = (
       <WidgetEditConfigModal ref="editModal"
                              widget={this.props.widget}
-                             onUpdate={this.updateWidget}/>
+                             onUpdate={this.updateWidget} />
     );
 
+    let disabledTooltip = null;
+    if (this.props.streamIds != null && this.props.widget.config.stream_id &&
+        !this.props.streamIds[this.props.widget.config.stream_id]) {
+      disabledTooltip = 'The stream is not available, cannot replay search.';
+    }
     return (
       <div ref="widget" className="widget" data-widget-id={this.props.widget.id}>
         <WidgetHeader ref="widgetHeader"
                       title={this.props.widget.description}
                       calculatedAt={this.state.calculatedAt}
                       error={this.state.error}
-                      errorMessage={this.state.errorMessage}/>
+                      errorMessage={this.state.errorMessage} />
 
         {this._getVisualization()}
 
         <WidgetFooter ref="widgetFooter"
                       locked={this.props.locked}
-                      onReplaySearch={this._replaySearch}
                       onShowConfig={this._showConfig}
                       onEditConfig={this._showEditConfig}
-                      onDelete={this.deleteWidget}/>
+                      onDelete={this.deleteWidget}
+                      replayHref={this.replayUrl()}
+                      replayToolTip={disabledTooltip} />
         {this.props.locked ? showConfigModal : editConfigModal}
       </div>
     );

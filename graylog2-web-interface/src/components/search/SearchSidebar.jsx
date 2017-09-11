@@ -1,17 +1,25 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { Button, DropdownButton, Input, MenuItem, Modal } from 'react-bootstrap';
-import {AutoAffix} from 'react-overlays';
+import { Button, DropdownButton, MenuItem, Modal, Tab, Tabs } from 'react-bootstrap';
+import { AutoAffix } from 'react-overlays';
 import numeral from 'numeral';
 import URI from 'urijs';
+import naturalSort from 'javascript-natural-sort';
+
+import { Timestamp } from 'components/common';
+import DateTime from 'logic/datetimes/DateTime';
 
 import StoreProvider from 'injection/StoreProvider';
 const SessionStore = StoreProvider.getStore('Session');
 const SearchStore = StoreProvider.getStore('Search');
 
-import { AddSearchCountToDashboard, SavedSearchControls, ShowQueryModal } from 'components/search';
+import { AddSearchCountToDashboard,
+  DecoratorSidebar,
+  FieldAnalyzersSidebar,
+  SavedSearchControls,
+  ShowQueryModal } from 'components/search';
 import BootstrapModalWrapper from 'components/bootstrap/BootstrapModalWrapper';
-import SidebarMessageField from './SidebarMessageField';
 
 import URLUtils from 'util/URLUtils';
 import ApiRoutes from 'routing/ApiRoutes';
@@ -20,110 +28,154 @@ import EventHandlersThrottler from 'util/EventHandlersThrottler';
 
 const SearchSidebar = React.createClass({
   propTypes: {
-    builtQuery: React.PropTypes.any,
-    currentSavedSearch: React.PropTypes.string,
-    fields: React.PropTypes.array,
-    fieldAnalyzers: React.PropTypes.array,
-    onFieldAnalyzer: React.PropTypes.func,
-    onFieldToggled: React.PropTypes.func,
-    permissions: React.PropTypes.array,
-    predefinedFieldSelection: React.PropTypes.func,
-    result: React.PropTypes.object,
-    searchInStream: React.PropTypes.object,
-    selectedFields: React.PropTypes.object,
-    shouldHighlight: React.PropTypes.bool,
-    showAllFields: React.PropTypes.bool,
-    showHighlightToggle: React.PropTypes.bool,
-    togglePageFields: React.PropTypes.func,
-    toggleShouldHighlight: React.PropTypes.func,
+    builtQuery: PropTypes.any,
+    currentSavedSearch: PropTypes.string,
+    fields: PropTypes.array,
+    fieldAnalyzers: PropTypes.array,
+    onFieldAnalyzer: PropTypes.func,
+    onFieldToggled: PropTypes.func,
+    permissions: PropTypes.array,
+    predefinedFieldSelection: PropTypes.func,
+    result: PropTypes.object,
+    searchInStream: PropTypes.object,
+    selectedFields: PropTypes.object,
+    shouldHighlight: PropTypes.bool,
+    showAllFields: PropTypes.bool,
+    showHighlightToggle: PropTypes.bool,
+    togglePageFields: PropTypes.func,
+    toggleShouldHighlight: PropTypes.func,
+    loadingSearch: PropTypes.bool,
   },
+
   getInitialState() {
     return {
-      fieldFilter: '',
-      maxFieldsHeight: 1000,
+      availableHeight: 1000,
+      lastResultsUpdate: DateTime.now().toISOString(),
     };
   },
 
   componentDidMount() {
     this._updateHeight();
     window.addEventListener('resize', this._resizeCallback);
-    window.addEventListener('scroll', this._updateHeight);
   },
-  componentWillReceiveProps(newProps) {
-    // update max-height of fields when we toggle per page/all fields
-    if (this.props.showAllFields !== newProps.showAllFields) {
-      this._updateHeight();
+
+  componentWillReceiveProps(nextProps) {
+    if (this.props.loadingSearch && !nextProps.loadingSearch) {
+      this.setState({ lastResultsUpdate: DateTime.now().toISOString() });
     }
   },
+
   componentWillUnmount() {
     window.removeEventListener('resize', this._resizeCallback);
-    window.removeEventListener('scroll', this._updateHeight);
   },
 
   eventsThrottler: new EventHandlersThrottler(),
+  SIDEBAR_MARGIN_BOTTOM: 10,
 
   _resizeCallback() {
     this.eventsThrottler.throttle(() => this._updateHeight());
   },
 
   _updateHeight() {
-    const header = ReactDOM.findDOMNode(this.refs.header);
-
-    const footer = ReactDOM.findDOMNode(this.refs.footer);
+    const viewPortHeight = window.innerHeight;
 
     const sidebar = ReactDOM.findDOMNode(this.refs.sidebar);
-    const sidebarTop = sidebar.getBoundingClientRect().top;
-    const sidebarCss = window.getComputedStyle(ReactDOM.findDOMNode(this.refs.sidebar));
-    const sidebarPaddingTop = parseFloat(sidebarCss.getPropertyValue('padding-top'));
+    const sidebarCss = window.getComputedStyle(ReactDOM.findDOMNode(sidebar));
     const sidebarPaddingBottom = parseFloat(sidebarCss.getPropertyValue('padding-bottom'));
 
-    const viewPortHeight = window.innerHeight;
-    const maxHeight =
-      viewPortHeight -
-      header.clientHeight - footer.clientHeight -
-      sidebarTop - sidebarPaddingTop - sidebarPaddingBottom -
-      35; // for good measure™
+    const maxHeight = viewPortHeight - sidebarPaddingBottom - this.SIDEBAR_MARGIN_BOTTOM;
 
-    this.setState({maxFieldsHeight: maxHeight});
+    this.setState({ availableHeight: maxHeight });
   },
 
-  _updateFieldSelection(setName) {
-    this.props.predefinedFieldSelection(setName);
-  },
-  _showAllFields(event) {
-    event.preventDefault();
-    if (!this.props.showAllFields) {
-      this.props.togglePageFields();
-    }
-  },
-  _showPageFields(event) {
-    event.preventDefault();
-    if (this.props.showAllFields) {
-      this.props.togglePageFields();
-    }
-  },
-  _showIndicesModal(event) {
-    event.preventDefault();
-    this.refs.indicesModal.open();
-  },
   _getURLForExportAsCSV() {
     const searchParams = SearchStore.getOriginalSearchURLParams();
     const streamId = this.props.searchInStream ? this.props.searchInStream.id : undefined;
     const query = searchParams.get('q') === '' ? '*' : searchParams.get('q');
     const fields = this.props.selectedFields;
-    const timeRange = SearchStore.rangeType === 'relative' ? {range: SearchStore.rangeParams.get('relative')} : SearchStore.rangeParams.toJS();
+    const rangeType = searchParams.get('rangetype');
+    const timeRange = {};
+    switch (rangeType) {
+      case 'relative':
+        timeRange.range = searchParams.get('relative');
+        break;
+      case 'absolute':
+        timeRange.from = searchParams.get('from');
+        timeRange.to = searchParams.get('to');
+        break;
+      case 'keyword':
+        timeRange.keyword = searchParams.get('keyword');
+        break;
+      default:
+        // Nothing to do here
+    }
 
     const url = new URI(URLUtils.qualifyUrl(
-      ApiRoutes.UniversalSearchApiController.export(SearchStore.rangeType, query, timeRange, streamId, 0, 0, fields.toJS()).url
-    ))
-      .username(SessionStore.getSessionId())
-      .password('session');
+      ApiRoutes.UniversalSearchApiController.export(rangeType, query, timeRange, streamId, 0, 0, fields.toJS()).url,
+    ));
+
+    if (URLUtils.areCredentialsInURLSupported()) {
+      url
+        .username(SessionStore.getSessionId())
+        .password('session');
+    }
 
     return url.toString();
   },
+
+  _closeModal(ref) {
+    return () => ref.close();
+  },
+
+  _openModal(ref) {
+    return (...args) => {
+      // Prevent event propagation that may come as first or second argument, as handlers for `onClick` and `onSelect`
+      // have different signatures.
+      [args[0], args[1]].some((argument) => {
+        if (argument && argument.preventDefault) {
+          argument.preventDefault();
+          return true;
+        }
+        return false;
+      });
+
+      ref.open();
+    };
+  },
+
+  _getExportModal() {
+    const infoText = (URLUtils.areCredentialsInURLSupported() ?
+      'Please right click the download link below and choose "Save Link As..." to download the CSV file.' :
+      'Please click the download link below. Your browser may ask for your username and password to ' +
+      'download the CSV file.');
+    return (
+      <BootstrapModalWrapper ref={(ref) => { this.exportModal = ref; }}>
+        <Modal.Header closeButton>
+          <Modal.Title>Export search results as CSV</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>{infoText}</p>
+          <p>
+            <a href={this._getURLForExportAsCSV()} target="_blank">
+              <i className="fa fa-cloud-download" />&nbsp;
+              Download
+            </a>
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button onClick={this._closeModal(this.exportModal)}>Close</Button>
+        </Modal.Footer>
+      </BootstrapModalWrapper>
+    );
+  },
+
   render() {
+    const formattedIndices = this.props.result.used_indices
+      .sort((i1, i2) => naturalSort(i1.index_name.toLowerCase(), i2.index_name.toLowerCase()))
+      .map(index => <li key={index.index_name}> {index.index_name}</li>);
+
     const indicesModal = (
-      <BootstrapModalWrapper ref="indicesModal">
+      <BootstrapModalWrapper ref={(ref) => { this.indicesModal = ref; }}>
         <Modal.Header closeButton>
           <Modal.Title>Used indices</Modal.Title>
         </Modal.Header>
@@ -134,31 +186,18 @@ const SearchSidebar = React.createClass({
           <h4>Indices used for this search:</h4>
 
           <ul className="index-list">
-            {this.props.result.used_indices.map((index) => <li key={index.index_name}> {index.index_name}</li>)}
+            {formattedIndices}
           </ul>
         </Modal.Body>
         <Modal.Footer>
-          <Button onClick={() => this.refs.indicesModal.close()}>Close</Button>
+          <Button onClick={this._closeModal(this.indicesModal)}>Close</Button>
         </Modal.Footer>
       </BootstrapModalWrapper>
     );
 
-    const messageFields = this.props.fields
-      .filter((field) => field.name.indexOf(this.state.fieldFilter) !== -1)
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((field) => {
-        return (
-          <SidebarMessageField key={field.name}
-                               field={field}
-                               fieldAnalyzers={this.props.fieldAnalyzers}
-                               onToggled={this.props.onFieldToggled}
-                               onFieldAnalyzer={this.props.onFieldAnalyzer}
-                               selected={this.props.selectedFields.contains(field.name)}/>
-        );
-      });
     let searchTitle = null;
     const moreActions = [
-      <MenuItem key="export" href={this._getURLForExportAsCSV()}>Export as CSV</MenuItem>,
+      <MenuItem key="export" onSelect={this._openModal(this.exportModal)}>Export as CSV</MenuItem>,
     ];
     if (this.props.searchInStream) {
       searchTitle = <span>{this.props.searchInStream.title}</span>;
@@ -168,82 +207,67 @@ const SearchSidebar = React.createClass({
     }
 
     // always add the debug query link as last elem
-    moreActions.push(<MenuItem divider key="div2"/>);
-    moreActions.push(<MenuItem key="showQuery" onSelect={() => this.refs.showQueryModal.open()}>Show query</MenuItem>);
+    moreActions.push(<MenuItem divider key="div2" />);
+    moreActions.push(<MenuItem key="showQuery" onSelect={this._openModal(this.showQueryModal)}>Show query</MenuItem>);
 
     return (
       <AutoAffix affixClassName="affix">
         <div className="content-col" ref="sidebar" style={{ top: undefined, position: undefined }}>
-          <div ref="header">
+          <div>
             <h2>
               {searchTitle}
             </h2>
 
-            <p style={{marginTop: 3}}>
-              Found <strong>{numeral(this.props.result.total_results).format('0,0')} messages</strong>&nbsp;
+            <p style={{ marginTop: 3 }}>
+              Found <strong>{numeral(this.props.result.total_results).format('0,0')} messages</strong>{' '}
               in {numeral(this.props.result.time).format('0,0')} ms, searched in&nbsp;
-              <a href="#" onClick={this._showIndicesModal}>
+              <a href="#" onClick={this._openModal(this.indicesModal)}>
                 {this.props.result.used_indices.length}&nbsp;{this.props.result.used_indices.length === 1 ? 'index' : 'indices'}
               </a>.
               {indicesModal}
+              <br />
+              Results retrieved at <Timestamp dateTime={this.state.lastResultsUpdate} format={DateTime.Formats.DATETIME} />.
             </p>
 
             <div className="actions">
-              <AddSearchCountToDashboard searchInStream={this.props.searchInStream} permissions={this.props.permissions}/>
+              <AddSearchCountToDashboard searchInStream={this.props.searchInStream} permissions={this.props.permissions} />
 
-              <SavedSearchControls currentSavedSearch={this.props.currentSavedSearch}/>
+              <SavedSearchControls currentSavedSearch={this.props.currentSavedSearch} />
 
-              <div style={{display: 'inline-block'}}>
+              <div style={{ display: 'inline-block' }}>
                 <DropdownButton bsSize="small" title="More actions" id="search-more-actions-dropdown">
                   {moreActions}
                 </DropdownButton>
-                <ShowQueryModal key="debugQuery" ref="showQueryModal" builtQuery={this.props.builtQuery}/>
+                <ShowQueryModal key="debugQuery" ref={(ref) => { this.showQueryModal = ref; }} builtQuery={this.props.builtQuery} />
               </div>
             </div>
 
+            {this._getExportModal()}
+
             <hr />
+          </div>
+          <Tabs id="searchSidebarTabs" animation={false}>
+            <Tab eventKey={1} title={<h4>Fields</h4>}>
+              <FieldAnalyzersSidebar fields={this.props.fields}
+                                     fieldAnalyzers={this.props.fieldAnalyzers}
+                                     onFieldAnalyzer={this.props.onFieldAnalyzer}
+                                     onFieldToggled={this.props.onFieldToggled}
+                                     maximumHeight={this.state.availableHeight}
+                                     predefinedFieldSelection={this.props.predefinedFieldSelection}
+                                     result={this.props.result}
+                                     selectedFields={this.props.selectedFields}
+                                     shouldHighlight={this.props.shouldHighlight}
+                                     showAllFields={this.props.showAllFields}
+                                     showHighlightToggle={this.props.showHighlightToggle}
+                                     togglePageFields={this.props.togglePageFields}
+                                     toggleShouldHighlight={this.props.toggleShouldHighlight} />
+            </Tab>
 
-            <h3>Fields</h3>
-
-            <div className="input-group input-group-sm" style={{marginTop: 5, marginBottom: 5}}>
-              <span className="input-group-btn">
-                  <button type="button" className="btn btn-default"
-                          onClick={() => this._updateFieldSelection('default')}>Default
-                  </button>
-                  <button type="button" className="btn btn-default"
-                          onClick={() => this._updateFieldSelection('all')}>All
-                  </button>
-                  <button type="button" className="btn btn-default"
-                          onClick={() => this._updateFieldSelection('none')}>None
-                  </button>
-              </span>
-              <input type="text" className="form-control" placeholder="Filter fields"
-                     onChange={(event) => this.setState({fieldFilter: event.target.value})}
-                     value={this.state.fieldFilter}/>
-            </div>
-          </div>
-          <div ref="fields" style={{maxHeight: this.state.maxFieldsHeight, overflowY: 'scroll'}}>
-            <ul className="search-result-fields">
-              {messageFields}
-            </ul>
-          </div>
-          <div ref="footer">
-            <div style={{marginTop: 13, marginBottom: 0}}>
-              List <span className="message-result-fields-range"> fields of&nbsp;
-              <a href="#" style={{fontWeight: this.props.showAllFields ? 'normal' : 'bold'}}
-                 onClick={this._showPageFields}>current page</a> or <a href="#"
-                                                                       style={{fontWeight: this.props.showAllFields ? 'bold' : 'normal'}}
-                                                                       onClick={this._showAllFields}>all
-                fields</a>.
-                    </span>
-              <br/>
-              { this.props.showHighlightToggle &&
-              <Input type="checkbox" bsSize="small" checked={this.props.shouldHighlight}
-                     onChange={this.props.toggleShouldHighlight} label="Highlight results"
-                     groupClassName="result-highlight-control"/>
-                }
-            </div>
-          </div>
+            <Tab eventKey={2} title={<h4>Decorators</h4>}>
+              <DecoratorSidebar stream={this.props.searchInStream ? this.props.searchInStream.id : undefined}
+                                maximumHeight={this.state.availableHeight} />
+            </Tab>
+          </Tabs>
         </div>
       </AutoAffix>
     );

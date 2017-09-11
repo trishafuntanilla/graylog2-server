@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { DropdownButton, MenuItem } from 'react-bootstrap';
 import naturalSort from 'javascript-natural-sort';
@@ -9,10 +10,10 @@ import moment from 'moment';
 
 const SurroundingSearchButton = React.createClass({
   propTypes: {
-    id: React.PropTypes.string.isRequired,
-    timestamp: React.PropTypes.number.isRequired,
-    searchConfig: React.PropTypes.object.isRequired,
-    messageFields: React.PropTypes.object.isRequired,
+    id: PropTypes.string.isRequired,
+    timestamp: PropTypes.number.isRequired,
+    searchConfig: PropTypes.object.isRequired,
+    messageFields: PropTypes.object.isRequired,
   },
 
   _buildTimeRangeOptions(searchConfig) {
@@ -37,15 +38,11 @@ const SurroundingSearchButton = React.createClass({
     return fields;
   },
 
-  _onClick(range) {
-    return (e) => {
-      e.preventDefault();
+  _searchLink(range) {
+    const fromTime = moment.unix(this.props.timestamp - Number(range)).toISOString();
+    const toTime = moment.unix(this.props.timestamp + Number(range)).toISOString();
 
-      const fromTime = moment.unix(this.props.timestamp - Number(range)).toISOString();
-      const toTime = moment.unix(this.props.timestamp + Number(range)).toISOString();
-
-      SearchStore.searchSurroundingMessages(this.props.id, fromTime, toTime, this._buildFilterFields());
-    };
+    return SearchStore.searchSurroundingMessages(this.props.id, fromTime, toTime, this._buildFilterFields());
   },
 
   render() {
@@ -54,7 +51,7 @@ const SurroundingSearchButton = React.createClass({
       .sort((a, b) => naturalSort(a, b))
       .map((key, idx) => {
         return (
-          <MenuItem key={idx} onClick={this._onClick(key)}>{timeRangeOptions[key]}</MenuItem>
+          <MenuItem key={idx} href={this._searchLink(key)}>{timeRangeOptions[key]}</MenuItem>
         );
       });
 

@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 
 const BootstrapAccordionGroup = React.createClass({
   propTypes: {
@@ -21,7 +22,7 @@ const BootstrapAccordionGroup = React.createClass({
       <div className="panel panel-default">
         <div className="panel-heading">
           <h4 className="panel-title">
-            <a href={'#' + id} data-parent="#bundles" data-toggle="collapse" className="collapsed">{name}</a>
+            <a href={`#${id}`} data-parent="#bundles" data-toggle="collapse" className="collapsed">{name}</a>
           </h4>
         </div>
         <div className="panel-collapse collapse" id={id}>

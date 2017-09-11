@@ -1,16 +1,18 @@
+import PropTypes from 'prop-types';
 import React from 'react';
+import { Input } from 'components/bootstrap';
 
 import { Select } from 'components/common';
 
 const IndexMaintenanceStrategiesConfiguration = React.createClass({
   propTypes: {
-    title: React.PropTypes.string.isRequired,
-    description: React.PropTypes.string.isRequired,
-    selectPlaceholder: React.PropTypes.string.isRequired,
-    pluginExports: React.PropTypes.array.isRequired,
-    strategies: React.PropTypes.array.isRequired,
-    activeConfig: React.PropTypes.object.isRequired,
-    updateState: React.PropTypes.func.isRequired,
+    title: PropTypes.string.isRequired,
+    description: PropTypes.string.isRequired,
+    selectPlaceholder: PropTypes.string.isRequired,
+    pluginExports: PropTypes.array.isRequired,
+    strategies: PropTypes.array.isRequired,
+    activeConfig: PropTypes.object.isRequired,
+    updateState: PropTypes.func.isRequired,
   },
 
   getInitialState() {
@@ -23,12 +25,12 @@ const IndexMaintenanceStrategiesConfiguration = React.createClass({
   },
 
   _getDefaultStrategyConfig(selectedStrategy) {
-    const result = this.props.strategies.filter((strategy) => strategy.type === selectedStrategy)[0];
+    const result = this.props.strategies.filter(strategy => strategy.type === selectedStrategy)[0];
     return result ? result.default_config : undefined;
   },
 
   _getStrategyJsonSchema(selectedStrategy) {
-    const result = this.props.strategies.filter((strategy) => strategy.type === selectedStrategy)[0];
+    const result = this.props.strategies.filter(strategy => strategy.type === selectedStrategy)[0];
     return result ? result.json_schema : undefined;
   },
 
@@ -36,32 +38,45 @@ const IndexMaintenanceStrategiesConfiguration = React.createClass({
     if (this.state.activeStrategy === selectedStrategy) {
       // If the newly selected strategy is the current active strategy, we use the active configuration.
       return this.state.activeConfig;
-    } else {
-      // If the newly selected strategy is not the current active strategy, we use the selected strategy's default config.
-      return this._getDefaultStrategyConfig(selectedStrategy);
     }
+      // If the newly selected strategy is not the current active strategy, we use the selected strategy's default config.
+    return this._getDefaultStrategyConfig(selectedStrategy);
   },
 
   _onSelect(newStrategy) {
     if (!newStrategy || newStrategy.length < 1) {
-      this.setState({newStrategy: undefined});
+      this.setState({ newStrategy: undefined });
       return;
     }
 
     const newConfig = this._getStrategyConfig(newStrategy);
 
-    this.setState({newStrategy: newStrategy, newConfig: newConfig});
+    this.setState({ newStrategy: newStrategy, newConfig: newConfig });
     this.props.updateState(newStrategy, newConfig);
   },
 
+  _addConfigType(strategy, data) {
+    // The config object needs to have the "type" field set to the "default_config.type" to make the REST call work.
+    const result = this.props.strategies.filter(s => s.type === strategy)[0];
+    const copy = data;
+
+    if (result) {
+      copy.type = result.default_config.type;
+    }
+
+    return copy;
+  },
+
   _onConfigUpdate(newConfig) {
-    this.setState({newConfig: newConfig});
-    this.props.updateState(this.state.newStrategy, newConfig);
+    const config = this._addConfigType(this.state.newStrategy, newConfig);
+
+    this.setState({ newConfig: config });
+    this.props.updateState(this.state.newStrategy, config);
   },
 
   _availableSelectOptions() {
     return this.props.pluginExports.map((config) => {
-      return {value: config.type, label: config.displayName};
+      return { value: config.type, label: config.displayName };
     });
   },
 
@@ -70,7 +85,7 @@ const IndexMaintenanceStrategiesConfiguration = React.createClass({
       return null;
     }
 
-    const strategy = this.props.pluginExports.filter((exportedStrategy) => exportedStrategy.type === selectedStrategy)[0];
+    const strategy = this.props.pluginExports.filter(exportedStrategy => exportedStrategy.type === selectedStrategy)[0];
 
     if (!strategy) {
       return null;
@@ -94,19 +109,15 @@ const IndexMaintenanceStrategiesConfiguration = React.createClass({
     return (
       <span>
         <h3>{this.props.title}</h3>
-        <div className="top-margin">
-          <p>{this.props.description}</p>
-        </div>
-        <div className="top-margin">
+        <p className="description">{this.props.description}</p>
+        <Input label={this.props.selectPlaceholder}>
           <Select placeholder={this.props.selectPlaceholder}
                   options={this._availableSelectOptions()}
                   matchProp="value"
                   value={this._activeSelection()}
-                  onValueChange={this._onSelect}/>
-        </div>
-        <div className="top-margin">
-          {this._getConfigurationComponent(this._activeSelection())}
-        </div>
+                  onValueChange={this._onSelect} />
+        </Input>
+        {this._getConfigurationComponent(this._activeSelection())}
       </span>
     );
   },

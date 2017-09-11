@@ -1,16 +1,15 @@
+import PropTypes from 'prop-types';
 import React from 'react';
+import { Button, OverlayTrigger, Tooltip } from 'react-bootstrap';
 
 const WidgetFooter = React.createClass({
   propTypes: {
-    locked: React.PropTypes.bool.isRequired,
-    onDelete: React.PropTypes.func.isRequired,
-    onEditConfig: React.PropTypes.func.isRequired,
-    onReplaySearch: React.PropTypes.func.isRequired,
-    onShowConfig: React.PropTypes.func.isRequired,
-  },
-  _replaySearch(e) {
-    e.preventDefault();
-    this.props.onReplaySearch(e);
+    locked: PropTypes.bool.isRequired,
+    onDelete: PropTypes.func.isRequired,
+    onEditConfig: PropTypes.func.isRequired,
+    onShowConfig: PropTypes.func.isRequired,
+    replayHref: PropTypes.string.isRequired,
+    replayToolTip: PropTypes.string,
   },
   _showConfig(e) {
     e.preventDefault();
@@ -25,21 +24,30 @@ const WidgetFooter = React.createClass({
     this.props.onDelete();
   },
   render() {
+    // if we have a tooltip, we disable the button link and instead show a tooltip on hover
+    const title = this.props.replayToolTip ? null : 'Replay search';
+    const href = this.props.replayToolTip ? null : this.props.replayHref;
+    let replay = (
+      <Button bsStyle="link" className="btn-text" title={title} href={href}>
+        <i className="fa fa-play" />
+      </Button>
+    );
+    if (this.props.replayToolTip) {
+      replay = (
+        <OverlayTrigger placement="bottom" overlay={<Tooltip id="tooltip">{this.props.replayToolTip}</Tooltip>}>
+          {replay}
+        </OverlayTrigger>
+      );
+    }
     const lockedActions = (
       <div className="actions">
         <div className="widget-replay">
-          <button className="btn btn-mini btn-link btn-text"
-                  title="Replay search"
-                  onClick={this._replaySearch}>
-            <i className="fa fa-play"/>
-          </button>
+          {replay}
         </div>
         <div className="widget-info">
-          <button className="btn btn-mini btn-link btn-text"
-                  title="Show widget configuration"
-                  onClick={this._showConfig}>
-            <i className="fa fa-info-circle"/>
-          </button>
+          <Button bsStyle="link" className="btn-text" title="Show widget configuration" onClick={this._showConfig}>
+            <i className="fa fa-info-circle" />
+          </Button>
         </div>
       </div>
     );
@@ -47,18 +55,14 @@ const WidgetFooter = React.createClass({
     const unlockedActions = (
       <div className="actions">
         <div className="widget-delete">
-          <button className="btn btn-mini btn-link btn-text"
-                  title="Delete widget"
-                  onClick={this._delete}>
-            <i className="fa fa-trash"/>
-          </button>
+          <Button bsStyle="link" className="btn-text" title="Delete widget" onClick={this._delete}>
+            <i className="fa fa-trash" />
+          </Button>
         </div>
         <div className="widget-edit">
-          <button className="btn btn-mini btn-link btn-text"
-                  title="Edit widget"
-                  onClick={this._editConfig}>
-            <i className="fa fa-pencil"/>
-          </button>
+          <Button bsStyle="link" className="btn-text" title="Edit widget" onClick={this._editConfig}>
+            <i className="fa fa-pencil" />
+          </Button>
         </div>
       </div>
     );

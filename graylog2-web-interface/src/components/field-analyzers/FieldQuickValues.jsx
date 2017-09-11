@@ -1,6 +1,7 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
-import {Button} from 'react-bootstrap';
+import { Button } from 'react-bootstrap';
 import Reflux from 'reflux';
 
 import QuickValuesVisualization from 'components/visualizations/QuickValuesVisualization';
@@ -15,6 +16,11 @@ const RefreshStore = StoreProvider.getStore('Refresh');
 const FieldQuickValues = React.createClass({
   propTypes: {
     permissions: PropTypes.arrayOf(PropTypes.string).isRequired,
+    query: PropTypes.string.isRequired,
+    rangeType: PropTypes.string.isRequired,
+    rangeParams: PropTypes.object.isRequired,
+    stream: PropTypes.object,
+    forceFetch: PropTypes.bool,
   },
   mixins: [Reflux.listenTo(RefreshStore, '_setupTimer', '_setupTimer')],
   getInitialState() {
@@ -26,6 +32,16 @@ const FieldQuickValues = React.createClass({
 
   componentDidMount() {
     this._loadQuickValuesData();
+  },
+  componentWillReceiveProps(nextProps) {
+    // Reload values when executed search changes
+    if (this.props.query !== nextProps.query ||
+        this.props.rangeType !== nextProps.rangeType ||
+        JSON.stringify(this.props.rangeParams) !== JSON.stringify(nextProps.rangeParams) ||
+        this.props.stream !== nextProps.stream ||
+        nextProps.forceFetch) {
+      this._loadQuickValuesData();
+    }
   },
   componentDidUpdate(oldProps, oldState) {
     if (this.state.field !== oldState.field) {
@@ -51,13 +67,13 @@ const FieldQuickValues = React.createClass({
     }
   },
   addField(field) {
-    this.setState({field: field}, () => this._loadQuickValuesData(false));
+    this.setState({ field: field }, () => this._loadQuickValuesData(false));
   },
   _loadQuickValuesData() {
     if (this.state.field !== undefined) {
-      this.setState({loadPending: true});
+      this.setState({ loadPending: true });
       const promise = FieldQuickValuesStore.getQuickValues(this.state.field);
-      promise.then((data) => this.setState({data: data, loadPending: false}));
+      promise.then(data => this.setState({ data: data, loadPending: false }));
     }
   },
   _resetStatus() {
@@ -72,11 +88,11 @@ const FieldQuickValues = React.createClass({
     } else {
       inner = (
         <QuickValuesVisualization id={this.state.field}
-                                  config={{show_pie_chart: true, show_data_table: true}}
+                                  config={{ show_pie_chart: true, show_data_table: true }}
                                   data={this.state.data}
                                   horizontal
                                   displayAddToSearchButton
-                                  displayAnalysisInformation/>
+                                  displayAnalysisInformation />
       );
     }
 
@@ -86,7 +102,7 @@ const FieldQuickValues = React.createClass({
           <div className="pull-right">
             <AddToDashboardMenu title="Add to dashboard"
                                 widgetType={this.WIDGET_TYPE}
-                                configuration={{field: this.state.field}}
+                                configuration={{ field: this.state.field }}
                                 bsStyle="default"
                                 pullRight
                                 permissions={this.props.permissions}>
@@ -94,9 +110,9 @@ const FieldQuickValues = React.createClass({
             </AddToDashboardMenu>
           </div>
           <h1>Quick Values for {this.state.field} {this.state.loadPending && <i
-            className="fa fa-spin fa-spinner"></i>}</h1>
+            className="fa fa-spin fa-spinner" />}</h1>
 
-          <div style={{maxHeight: 400, overflow: 'auto', marginTop: 10}}>{inner}</div>
+          <div style={{ maxHeight: 400, overflow: 'auto', marginTop: 10 }}>{inner}</div>
         </div>
       );
     }

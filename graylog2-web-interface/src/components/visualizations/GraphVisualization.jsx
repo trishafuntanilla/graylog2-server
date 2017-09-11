@@ -1,10 +1,11 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
 import numeral from 'numeral';
 import crossfilter from 'crossfilter';
 import dc from 'dc';
 import d3 from 'd3';
-import jQuery from 'jquery';
+import deepEqual from 'deep-equal';
 
 import DateTime from 'logic/datetimes/DateTime';
 import HistogramFormatter from 'logic/graphs/HistogramFormatter';
@@ -14,8 +15,9 @@ import NumberUtils from 'util/NumberUtils';
 
 import graphHelper from 'legacy/graphHelper';
 
-require('!script!../../../public/javascripts/jquery-2.1.1.min.js');
-require('!script!../../../public/javascripts/bootstrap.min.js');
+import $ from 'jquery';
+global.jQuery = $;
+require('bootstrap/js/tooltip');
 
 const GraphFactory = {
   create(config, domNode, tooltipTitleFormatter) {
@@ -37,11 +39,11 @@ const GraphFactory = {
         break;
       case 'scatterplot':
         graph = dc.lineChart(domNode);
-        graph.renderDataPoints({radius: 2, fillOpacity: 1, strokeOpacity: 1});
+        graph.renderDataPoints({ radius: 2, fillOpacity: 1, strokeOpacity: 1 });
         D3Utils.tooltipRenderlet(graph, '.chart-body circle.dot', tooltipTitleFormatter);
         break;
       default:
-        throw new Error("Unsupported renderer '" + config.renderer + "'");
+        throw new Error(`Unsupported renderer '${config.renderer}'`);
     }
 
     if (config.renderer === 'line' || config.renderer === 'area') {
@@ -81,8 +83,8 @@ const GraphVisualization = React.createClass({
   getInitialState() {
     this.triggerRender = true;
     this.graphData = crossfilter();
-    this.dimension = this.graphData.dimension((d) => d.x);
-    this.group = this.dimension.group().reduceSum((d) => d.y);
+    this.dimension = this.graphData.dimension(d => d.x);
+    this.group = this.dimension.group().reduceSum(d => d.y);
 
     return {
       dataPoints: [],
@@ -93,6 +95,10 @@ const GraphVisualization = React.createClass({
     this._updateData(this.props.data, this.props.config);
   },
   componentWillReceiveProps(nextProps) {
+    if (deepEqual(this.props, nextProps)) {
+      return;
+    }
+
     if (nextProps.height !== this.props.height || nextProps.width !== this.props.width) {
       this._resizeVisualization(nextProps.width, nextProps.height);
     }
@@ -103,7 +109,7 @@ const GraphVisualization = React.createClass({
     const dataPoints = HistogramFormatter.format(data, this.props.computationTimeRange,
       config.interval, this.props.width, isSearchAll, config.valuetype);
 
-    this.setState({dataPoints: this._normalizeData(dataPoints)}, this.drawData);
+    this.setState({ dataPoints: this._normalizeData(dataPoints) }, this.drawData);
   },
   _normalizeData(data) {
     if (data === null || data === undefined || !Array.isArray(data)) {
@@ -156,7 +162,7 @@ const GraphVisualization = React.createClass({
     this.graph
       .width(this.props.width)
       .height(this.props.height)
-      .margins({left: 50, right: 15, top: 10, bottom: 35})
+      .margins({ left: 50, right: 15, top: 10, bottom: 35 })
       .dimension(this.dimension)
       .group(this.group)
       .x(d3.time.scale())
@@ -170,11 +176,11 @@ const GraphVisualization = React.createClass({
       .colors(D3Utils.glColourPalette());
 
     $(graphDomNode).tooltip({
-      'selector': '[rel="tooltip"]',
-      'container': 'body',
-      'placement': 'auto',
-      'delay': {show: 300, hide: 100},
-      'html': true,
+      selector: '[rel="tooltip"]',
+      container: 'body',
+      placement: 'auto',
+      delay: { show: 300, hide: 100 },
+      html: true,
     });
 
     this.graph.xAxis()
@@ -189,7 +195,7 @@ const GraphVisualization = React.createClass({
   },
   render() {
     return (
-      <div id={`visualization-${this.props.id}`} className={`graph ${this.props.config.renderer}`}/>
+      <div id={`visualization-${this.props.id}`} className={`graph ${this.props.config.renderer}`} />
     );
   },
 });

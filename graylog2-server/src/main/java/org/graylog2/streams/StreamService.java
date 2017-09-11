@@ -64,8 +64,10 @@ public interface StreamService extends PersistedService {
 
     void removeAlertCondition(Stream stream, String conditionId);
 
+    @Deprecated
     void addAlertReceiver(Stream stream, String type, String name);
 
+    @Deprecated
     void removeAlertReceiver(Stream stream, String type, String name);
 
     void addOutput(Stream stream, Output output);
@@ -73,4 +75,6 @@ public interface StreamService extends PersistedService {
     void removeOutput(Stream stream, Output output);
 
     void removeOutputFromAllStreams(Output output);
+
+    List<Stream> loadAllWithIndexSet(String indexSetId);
 }

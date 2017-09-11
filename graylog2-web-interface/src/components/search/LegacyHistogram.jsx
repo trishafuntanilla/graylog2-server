@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import ReactDOM from 'react-dom';
 
@@ -13,10 +14,10 @@ import resultHistogram from 'legacy/result-histogram';
 // Hue-manatee. We tried to be sorry, but aren't.
 const LegacyHistogram = React.createClass({
   propTypes: {
-    formattedHistogram: React.PropTypes.array.isRequired,
-    histogram: React.PropTypes.object.isRequired,
-    stream: React.PropTypes.object,
-    permissions: React.PropTypes.arrayOf(React.PropTypes.string).isRequired,
+    formattedHistogram: PropTypes.array.isRequired,
+    histogram: PropTypes.object.isRequired,
+    stream: PropTypes.object,
+    permissions: PropTypes.arrayOf(PropTypes.string).isRequired,
   },
   getInitialState() {
     return {};
@@ -86,7 +87,7 @@ const LegacyHistogram = React.createClass({
 
     const resolutionSelector = (
       <ul className="graph-resolution-selector list-inline">
-        <li><i className="fa fa-clock-o"/></li>
+        <li><i className="fa fa-clock-o" /></li>
         {resolutionLinks}
       </ul>
     );
@@ -98,17 +99,17 @@ const LegacyHistogram = React.createClass({
                             configuration={{ interval: this.props.histogram.interval }}
                             pullRight
                             permissions={this.props.permissions}
-                            isStreamSearch={this.props.stream !== null}/>
+                            isStreamSearch={this.props.stream !== null} />
       </div>
       <h1>Histogram</h1>
 
       {resolutionSelector}
 
       <div id="result-graph-container">
-        <div id="y_axis"></div>
+        <div id="y_axis" />
         <div id="result-graph" data-from={this._getFirstHistogramValue()}
-             data-to={this.props.histogram.histogram_boundaries.to}></div>
-        <div id="result-graph-timeline"></div>
+             data-to={this.props.histogram.histogram_boundaries.to} />
+        <div id="result-graph-timeline" />
       </div>
 
     </div>);

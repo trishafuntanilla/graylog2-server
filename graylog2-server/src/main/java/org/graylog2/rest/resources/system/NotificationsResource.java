@@ -25,6 +25,8 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.notifications.Notification;
 import org.graylog2.notifications.NotificationService;
 import org.graylog2.shared.rest.resources.RestResource;
@@ -91,6 +93,7 @@ public class NotificationsResource extends RestResource {
     @ApiResponses(value = {
             @ApiResponse(code = 404, message = "No such notification type.")
     })
+    @AuditEvent(type = AuditEventTypes.SYSTEM_NOTIFICATION_DELETE)
     public void deleteNotification(@ApiParam(name = "notificationType")
                                    @PathParam("notificationType") String notificationType) {
         Notification.Type type;

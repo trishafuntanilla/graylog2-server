@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
 import { DropdownButton, MenuItem } from 'react-bootstrap';
@@ -11,9 +12,9 @@ const LoggersStore = StoreProvider.getStore('Loggers');
 
 const LogLevelDropdown = React.createClass({
   propTypes: {
-    name: React.PropTypes.string.isRequired,
-    nodeId: React.PropTypes.string.isRequired,
-    subsystem: React.PropTypes.object.isRequired,
+    name: PropTypes.string.isRequired,
+    nodeId: PropTypes.string.isRequired,
+    subsystem: PropTypes.object.isRequired,
   },
   mixins: [Reflux.connect(LoggersStore)],
   _changeLoglevel(loglevel) {
@@ -22,8 +23,8 @@ const LogLevelDropdown = React.createClass({
   render() {
     const { subsystem, nodeId } = this.props;
     const loglevels = this.state.availableLoglevels
-      .map((loglevel) =>
-        <MenuItem key={subsystem + '-' + nodeId + '-' + loglevel} active={subsystem.level === loglevel} onClick={(evt) => { evt.preventDefault(); this._changeLoglevel(loglevel); }}>
+      .map(loglevel =>
+        <MenuItem key={`${subsystem}-${nodeId}-${loglevel}`} active={subsystem.level === loglevel} onClick={(evt) => { evt.preventDefault(); this._changeLoglevel(loglevel); }}>
           {String(loglevel).capitalize().toString()}
         </MenuItem>);
     return (

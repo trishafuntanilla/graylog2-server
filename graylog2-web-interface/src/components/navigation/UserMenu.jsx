@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { NavDropdown, MenuItem } from 'react-bootstrap';
 import { LinkContainer } from 'react-router-bootstrap';
@@ -13,8 +14,8 @@ import history from 'util/History';
 
 const UserMenu = React.createClass({
   propTypes: {
-    loginName: React.PropTypes.string.isRequired,
-    fullName: React.PropTypes.string.isRequired,
+    loginName: PropTypes.string.isRequired,
+    fullName: PropTypes.string.isRequired,
   },
   onLogoutClicked() {
     SessionActions.logout.triggerPromise(SessionStore.getSessionId()).then(() => {
@@ -23,12 +24,12 @@ const UserMenu = React.createClass({
   },
   render() {
     return (
-      <NavDropdown navItem title={this.props.fullName} id="user-menu-dropdown">
-        <LinkContainer to={Routes.SYSTEM.USERS.edit(this.props.loginName)}>
+      <NavDropdown title={this.props.fullName} id="user-menu-dropdown">
+        <LinkContainer to={Routes.SYSTEM.AUTHENTICATION.USERS.edit(encodeURIComponent(this.props.loginName))}>
           <MenuItem>Edit profile</MenuItem>
         </LinkContainer>
         <MenuItem divider />
-        <MenuItem onSelect={this.onLogoutClicked}><i className="fa fa-sign-out"/> Log out</MenuItem>
+        <MenuItem onSelect={this.onLogoutClicked}><i className="fa fa-sign-out" /> Log out</MenuItem>
       </NavDropdown>
     );
   },

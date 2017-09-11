@@ -1,7 +1,9 @@
-import React, {PropTypes} from 'react';
-import {Row, Col, Input} from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Row, Col } from 'react-bootstrap';
 
-import {TimezoneSelect} from 'components/common';
+import { Input } from 'components/bootstrap';
+import { LocaleSelect, TimezoneSelect } from 'components/common';
 import DocumentationLink from 'components/support/DocumentationLink';
 
 import DocsHelper from 'util/DocsHelper';
@@ -17,7 +19,7 @@ const DateConverterConfiguration = React.createClass({
     this.props.onChange(this.props.type, this._getConverterObject());
   },
   _getConverterObject(configuration) {
-    return {type: this.props.type, config: configuration || this.props.configuration};
+    return { type: this.props.type, config: configuration || this.props.configuration };
   },
   _toggleConverter(event) {
     let converter;
@@ -39,14 +41,21 @@ const DateConverterConfiguration = React.createClass({
     const dateFormatHelpMessage = (
       <span>
         String format the date uses. Read more in the <DocumentationLink
-        page={DocsHelper.PAGES.PAGE_STANDARD_DATE_CONVERTER} text="documentation"/>.
+        page={DocsHelper.PAGES.PAGE_STANDARD_DATE_CONVERTER} text="documentation" />.
       </span>
     );
 
     const timezoneHelpMessage = (
       <span>
         Time zone to apply to date. Read more in the <DocumentationLink
-        page={DocsHelper.PAGES.PAGE_STANDARD_DATE_CONVERTER} text="documentation"/>.
+        page={DocsHelper.PAGES.PAGE_STANDARD_DATE_CONVERTER} text="documentation" />.
+      </span>
+    );
+
+    const localeHelpMessage = (
+      <span>
+        Locale to use when parsing the date. Read more in the <DocumentationLink
+        page={DocsHelper.PAGES.PAGE_STANDARD_DATE_CONVERTER} text="documentation" />.
       </span>
     );
 
@@ -58,7 +67,7 @@ const DateConverterConfiguration = React.createClass({
                label="Convert to date type"
                wrapperClassName="col-md-offset-2 col-md-10"
                defaultChecked
-               onChange={this._toggleConverter}/>
+               onChange={this._toggleConverter} />
         <Row className="row-sm">
           <Col md={9} mdOffset={2}>
             <div className="xtrc-converter-subfields">
@@ -71,7 +80,7 @@ const DateConverterConfiguration = React.createClass({
                      placeholder="yyyy-MM-dd HH:mm:ss.SSS"
                      onChange={this._onChange('date_format')}
                      required={this.refs.converterEnabled && this.refs.converterEnabled.getChecked()}
-                     help={dateFormatHelpMessage}/>
+                     help={dateFormatHelpMessage} />
 
               <Input label="Time Zone"
                      id={`${this.props.type}_converter_timezone`}
@@ -82,7 +91,18 @@ const DateConverterConfiguration = React.createClass({
                                 id={`${this.props.type}_converter_timezone`}
                                 className="timezone-select"
                                 value={this.props.configuration.time_zone}
-                                onChange={this._onChange('time_zone')}/>
+                                onChange={this._onChange('time_zone')} />
+              </Input>
+              <Input label="Locale"
+                     id={`${this.props.type}_converter_locale`}
+                     labelClassName="col-sm-3"
+                     wrapperClassName="col-sm-9"
+                     help={localeHelpMessage}>
+                <LocaleSelect ref="locale"
+                              id={`${this.props.type}_converter_locale`}
+                              className="locale-select"
+                              value={this.props.configuration.locale}
+                              onChange={this._onChange('locale')} />
               </Input>
             </div>
           </Col>

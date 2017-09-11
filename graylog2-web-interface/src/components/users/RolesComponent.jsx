@@ -1,6 +1,6 @@
 import React from 'react';
 import Immutable from 'immutable';
-import { Row, Col } from 'react-bootstrap';
+import { Button, Col, Row } from 'react-bootstrap';
 
 import StoreProvider from 'injection/StoreProvider';
 const StreamsStore = StoreProvider.getStore('Streams');
@@ -10,6 +10,7 @@ const RolesStore = StoreProvider.getStore('Roles');
 import UserNotification from 'util/UserNotification';
 import RoleList from 'components/users/RoleList';
 import EditRole from 'components/users/EditRole';
+import PageHeader from 'components/common/PageHeader';
 
 const RolesComponent = React.createClass({
   getInitialState() {
@@ -23,28 +24,28 @@ const RolesComponent = React.createClass({
   },
   componentDidMount() {
     this.loadRoles();
-    StreamsStore.load(streams => this.setState({streams: Immutable.List(streams)}));
-    DashboardsStore.listDashboards().then(dashboards => this.setState({dashboards: dashboards}));
+    StreamsStore.load(streams => this.setState({ streams: Immutable.List(streams) }));
+    DashboardsStore.listDashboards().then(dashboards => this.setState({ dashboards: dashboards }));
   },
 
   loadRoles() {
     const promise = RolesStore.loadRoles();
-    promise.then(roles => {
-      this.setState({roles: Immutable.Set(roles), rolesLoaded: true});
+    promise.then((roles) => {
+      this.setState({ roles: Immutable.Set(roles), rolesLoaded: true });
     });
   },
 
   _showCreateRole() {
-    this.setState({showEditRole: true});
+    this.setState({ showEditRole: true });
   },
   _showEditRole(role) {
-    this.setState({showEditRole: true, editRole: role});
+    this.setState({ showEditRole: true, editRole: role });
   },
   _deleteRole(role) {
-    if (window.confirm('Do you really want to delete role ' + role.name + '?')) {
+    if (window.confirm(`Do you really want to delete role ${role.name}?`)) {
       RolesStore.getMembers(role.name).then((membership) => {
         if (membership.users.length !== 0) {
-          UserNotification.error('Cannot delete role ' + role.name + '. It is still assigned to ' + membership.users.length + ' users.');
+          UserNotification.error(`Cannot delete role ${role.name}. It is still assigned to ${membership.users.length} users.`);
         } else {
           RolesStore.deleteRole(role.name).then(this.loadRoles);
         }
@@ -59,7 +60,7 @@ const RolesComponent = React.createClass({
     }
   },
   _clearEditRole() {
-    this.setState({showEditRole: false, editRole: null});
+    this.setState({ showEditRole: false, editRole: null });
   },
 
   render() {
@@ -69,16 +70,30 @@ const RolesComponent = React.createClass({
     } else if (this.state.showEditRole) {
       content =
         (<EditRole initialRole={this.state.editRole} streams={this.state.streams} dashboards={this.state.dashboards}
-                  onSave={this._saveRole} cancelEdit={this._clearEditRole}/>);
+                  onSave={this._saveRole} cancelEdit={this._clearEditRole} />);
     } else {
       content = (<RoleList roles={this.state.roles}
-                          showEditRole={this._showEditRole}
-                          deleteRole={this._deleteRole}
-                          createRole={this._showCreateRole}/>);
+                           showEditRole={this._showEditRole}
+                           deleteRole={this._deleteRole} />);
+    }
+
+    let actionButton;
+    if (!this.state.showEditRole) {
+      actionButton = <Button bsStyle="success" onClick={this._showCreateRole}>Add new role</Button>;
     }
     return (
       <Row>
         <Col md={12}>
+          <PageHeader title="Roles" subpage>
+            <span>
+              Roles bundle permissions which can be assigned to multiple users at once
+            </span>
+            {null}
+            <span>
+              {actionButton}
+            </span>
+          </PageHeader>
+
           {content}
         </Col>
       </Row>

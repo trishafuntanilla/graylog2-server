@@ -1,6 +1,7 @@
-import React, {Component, PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
-import {Modal, Button} from 'react-bootstrap';
+import { Modal, Button } from 'react-bootstrap';
 import $ from 'jquery';
 
 import BootstrapModalWrapper from 'components/bootstrap/BootstrapModalWrapper';
@@ -18,12 +19,12 @@ class BootstrapModalForm extends Component {
     this.open = this.open.bind(this);
     this.close = this.close.bind(this);
     this._submit = this._submit.bind(this);
-    this._onModalClose = this._onModalClose.bind(this);
+    this._onModalCancel = this._onModalCancel.bind(this);
   }
 
-  _onModalClose() {
-    if (typeof this.props.onModalClose === 'function') {
-      this.props.onModalClose();
+  _onModalCancel() {
+    if (typeof this.props.onCancel === 'function') {
+      this.props.onCancel();
     }
 
     this.close();
@@ -67,7 +68,10 @@ class BootstrapModalForm extends Component {
     );
 
     return (
-      <BootstrapModalWrapper ref="modal" onOpen={this.props.onModalOpen} onClose={this.props.onModalClose}>
+      <BootstrapModalWrapper ref="modal"
+                             onOpen={this.props.onModalOpen}
+                             onClose={this.props.onModalClose}
+                             onHide={this._onModalCancel}>
         <Modal.Header closeButton>
           <Modal.Title>{this.props.title}</Modal.Title>
         </Modal.Header>
@@ -76,8 +80,8 @@ class BootstrapModalForm extends Component {
             {body}
           </Modal.Body>
           <Modal.Footer>
-            <Button type="button" onClick={this._onModalClose}>{this.props.cancelButtonText}</Button>
-            <Button type="submit" bsStyle="primary">{this.props.submitButtonText}</Button>
+            <Button type="button" onClick={this._onModalCancel}>{this.props.cancelButtonText}</Button>
+            <Button type="submit" disabled={this.props.submitButtonDisabled} bsStyle="primary">{this.props.submitButtonText}</Button>
           </Modal.Footer>
         </form>
       </BootstrapModalWrapper>
@@ -96,18 +100,21 @@ BootstrapModalForm.propTypes = {
   onModalOpen: PropTypes.func,
   onModalClose: PropTypes.func,
   onSubmitForm: PropTypes.func,
+  onCancel: PropTypes.func,
   /* Object with additional props to pass to the form */
   formProps: PropTypes.object,
   /* Text to use in the cancel button. "Cancel" is the default */
   cancelButtonText: PropTypes.string,
   /* Text to use in the submit button. "Submit" is the default */
   submitButtonText: PropTypes.string,
+  submitButtonDisabled: PropTypes.bool,
 };
 
 BootstrapModalForm.defaultProps = {
   formProps: {},
   cancelButtonText: 'Cancel',
   submitButtonText: 'Submit',
+  submitButtonDisabled: false,
 };
 
 export default BootstrapModalForm;

@@ -35,6 +35,8 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.impl.ThrowableProxy;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.log4j.MemoryAppender;
 import org.graylog2.rest.models.system.loggers.responses.InternalLogMessage;
 import org.graylog2.rest.models.system.loggers.responses.LogMessagesSummary;
@@ -168,12 +170,14 @@ public class LoggersResource extends RestResource {
             @ApiResponse(code = 404, message = "No such subsystem.")
     })
     @Path("/subsystems/{subsystem}/level/{level}")
+    @AuditEvent(type = AuditEventTypes.LOG_LEVEL_UPDATE)
     public void setSubsystemLoggerLevel(
         @ApiParam(name = "subsystem", required = true) @PathParam("subsystem") @NotEmpty String subsystemTitle,
         @ApiParam(name = "level", required = true) @PathParam("level") @NotEmpty String level) {
         if (!SUBSYSTEMS.containsKey(subsystemTitle)) {
-            LOG.warn("No such subsystem: [{}]. Returning 404.", subsystemTitle);
-            throw new NotFoundException();
+            final String msg = "No such logging subsystem: [" + subsystemTitle + "]";
+            LOG.warn(msg);
+            throw new NotFoundException(msg);
         }
         checkPermission(RestPermissions.LOGGERS_EDITSUBSYSTEM, subsystemTitle);
 
@@ -189,6 +193,7 @@ public class LoggersResource extends RestResource {
     @ApiOperation(value = "Set the loglevel of a single logger",
             notes = "Provided level is falling back to DEBUG if it does not exist")
     @Path("/{loggerName}/level/{level}")
+    @AuditEvent(type = AuditEventTypes.LOG_LEVEL_UPDATE)
     public void setSingleLoggerLevel(
         @ApiParam(name = "loggerName", required = true) @PathParam("loggerName") @NotEmpty String loggerName,
         @ApiParam(name = "level", required = true) @NotEmpty @PathParam("level") String level) {
@@ -235,7 +240,7 @@ public class LoggersResource extends RestResource {
             if (thrownProxy == null) {
                 throwable = null;
             } else {
-                throwable = thrownProxy.getExtendedStackTraceAsString();
+                throwable = thrownProxy.getExtendedStackTraceAsString("");
             }
 
             final Marker marker = event.getMarker();
@@ -247,7 +252,7 @@ public class LoggersResource extends RestResource {
                     new DateTime(event.getTimeMillis(), DateTimeZone.UTC),
                     throwable,
                     event.getThreadName(),
-                    event.getContextMap()
+                    event.getContextData().toMap()
             ));
         }
 

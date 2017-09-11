@@ -1,7 +1,10 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
-import {ListGroupItem} from 'react-bootstrap';
+import { ListGroupItem } from 'react-bootstrap';
 import { DragSource, DropTarget } from 'react-dnd';
+
+import SortableListItemStyle from '!style!css!components/common/SortableListItem.css';
 
 const ItemTypes = {
   ITEM: 'item',
@@ -81,16 +84,23 @@ const SortableListItem = React.createClass({
   propTypes: {
     connectDragSource: PropTypes.func.isRequired,
     connectDropTarget: PropTypes.func.isRequired,
+    content: PropTypes.any.isRequired,
+    disableDragging: PropTypes.bool,
     index: PropTypes.number.isRequired,
     isDragging: PropTypes.bool.isRequired,
     isOver: PropTypes.bool.isRequired,
     id: PropTypes.any.isRequired,
-    text: PropTypes.string.isRequired,
     moveItem: PropTypes.func.isRequired,
   },
+  getDefaultProps() {
+    return {
+      disableDragging: false,
+    };
+  },
+
   render() {
-    const { text, isDragging, isOver, connectDragSource, connectDropTarget } = this.props;
-    const classes = [];
+    const { content, isDragging, isOver, connectDragSource, connectDropTarget } = this.props;
+    const classes = [SortableListItemStyle.listGroupItem];
     if (isDragging) {
       classes.push('dragging');
     }
@@ -98,13 +108,20 @@ const SortableListItem = React.createClass({
       classes.push('over');
     }
 
-    return connectDragSource(connectDropTarget(
+    const handle = <span className={SortableListItemStyle.itemHandle}><i className="fa fa-sort" /></span>;
+
+    const component = (
       <div className="sortable-list-item">
         <ListGroupItem className={classes.join(' ')}>
-          <i className="fa fa-sort" style={{marginRight: 10}}/> {text}
+          <div>
+            {this.props.disableDragging ? null : handle}
+            {content}
+          </div>
         </ListGroupItem>
       </div>
-    ));
+    );
+
+    return this.props.disableDragging ? component : connectDragSource(connectDropTarget(component));
   },
 });
 

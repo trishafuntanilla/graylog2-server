@@ -2,19 +2,27 @@ import Qs from 'qs';
 
 const ApiRoutes = {
   AlarmCallbacksApiController: {
-    available: (streamId) => { return { url: `/streams/${streamId}/alarmcallbacks/available` }; },
+    available: () => { return { url: '/alerts/callbacks/types' }; },
     create: (streamId) => { return { url: `/streams/${streamId}/alarmcallbacks` }; },
     delete: (streamId, alarmCallbackId) => { return { url: `/streams/${streamId}/alarmcallbacks/${alarmCallbackId}` }; },
+    listAll: () => { return { url: '/alerts/callbacks' }; },
     list: (streamId) => { return { url: `/streams/${streamId}/alarmcallbacks` }; },
+    testAlert: (alarmCallbackId) => { return { url: `/alerts/callbacks/${alarmCallbackId}/test` }; },
     update: (streamId, alarmCallbackId) => { return { url: `/streams/${streamId}/alarmcallbacks/${alarmCallbackId}` }; },
   },
   AlarmCallbackHistoryApiController: {
     list: (streamId, alertId) => { return { url: `/streams/${streamId}/alerts/${alertId}/history` }; },
   },
   AlertsApiController: {
-    list: (streamId, since) => { return { url: `/streams/${streamId}/alerts/?since=${since}` }; },
+    get: (alertId) => { return { url: `/streams/alerts/${alertId}` }; },
+    list: (streamId, since) => { return { url: `/streams/${streamId}/alerts?since=${since}` }; },
     listPaginated: (streamId, skip, limit) => { return { url: `/streams/${streamId}/alerts/paginated?skip=${skip}&limit=${limit}` }; },
-    listAllStreams: (since) => { return { url: `/streams/alerts/?since=${since}` }; },
+    listAllPaginated: (skip, limit, state) => { return { url: `/streams/alerts/paginated?skip=${skip}&limit=${limit}&state=${state}` }; },
+    listAllStreams: (since) => { return { url: `/streams/alerts?since=${since}` }; },
+  },
+  AlertConditionsApiController: {
+    available: () => { return { url: '/alerts/conditions/types' }; },
+    list: () => { return { url: '/alerts/conditions' }; },
   },
   BundlesApiController: {
     apply: (bundleId) => { return { url: `/system/bundles/${bundleId}/apply` }; },
@@ -23,10 +31,15 @@ const ApiRoutes = {
     export: () => { return { url: '/system/bundles/export' }; },
     list: () => { return { url: '/system/bundles' }; },
   },
+  CodecTypesController: {
+    list: () => { return { url: '/system/codecs/types/all' }; },
+  },
   CountsApiController: {
     total: () => { return { url: '/count/total' }; },
+    indexSetTotal: (indexSetId) => { return { url: `/count/${indexSetId}/total` }; },
   },
   ClusterApiResource: {
+    list: () => { return { url: '/system/cluster/nodes' }; },
     node: () => { return { url: '/system/cluster/node' }; },
   },
   DashboardsApiController: {
@@ -42,9 +55,16 @@ const ApiRoutes = {
     widgetValue: (dashboardId, widgetId) => { return { url: `/dashboards/${dashboardId}/widgets/${widgetId}/value` }; },
     updatePositions: (dashboardId) => { return { url: `/dashboards/${dashboardId}/positions` }; },
   },
+  DecoratorsResource: {
+    available: () => { return { url: '/search/decorators/available' }; },
+    create: () => { return { url: '/search/decorators' }; },
+    get: () => { return { url: '/search/decorators' }; },
+    remove: (decoratorId) => { return { url: `/search/decorators/${decoratorId}` }; },
+    update: (decoratorId) => { return { url: `/search/decorators/${decoratorId}` }; },
+  },
   DeflectorApiController: {
-    cycle: () => { return { url: '/system/deflector/cycle' }; },
-    list: () => { return { url: '/system/deflector' }; },
+    cycle: (indexSetId) => { return { url: `/cluster/deflector/${indexSetId}/cycle` }; },
+    list: (indexSetId) => { return { url: `/system/deflector/${indexSetId}` }; },
   },
   IndexerClusterApiController: {
     health: () => { return { url: '/system/indexer/cluster/health' }; },
@@ -55,18 +75,27 @@ const ApiRoutes = {
     list: (limit, offset) => { return { url: `/system/indexer/failures?limit=${limit}&offset=${offset}` }; },
   },
   IndexerOverviewApiResource: {
-    list: () => { return { url: '/system/indexer/overview' }; },
+    list: (indexSetId) => { return { url: `/system/indexer/overview/${indexSetId}` }; },
   },
   IndexRangesApiController: {
     list: () => { return { url: '/system/indices/ranges' }; },
-    rebuild: () => { return { url: '/system/indices/ranges/rebuild' }; },
+    rebuild: (indexSetId) => { return { url: `/system/indices/ranges/index_set/${indexSetId}/rebuild` }; },
     rebuildSingle: (index) => { return { url: `/system/indices/ranges/${index}/rebuild` }; },
+  },
+  IndexSetsApiController: {
+    list: (stats) => { return { url: `/system/indices/index_sets?stats=${stats}` }; },
+    listPaginated: (skip, limit, stats) => { return { url: `/system/indices/index_sets?skip=${skip}&limit=${limit}&stats=${stats}` }; },
+    get: (indexSetId) => { return { url: `/system/indices/index_sets/${indexSetId}` }; },
+    create: () => { return { url: '/system/indices/index_sets' }; },
+    delete: (indexSetId, deleteIndices) => { return { url: `/system/indices/index_sets/${indexSetId}?delete_indices=${deleteIndices}` }; },
+    setDefault: (indexSetId) => { return { url: `/system/indices/index_sets/${indexSetId}/default` }; },
   },
   IndicesApiController: {
     close: (indexName) => { return { url: `/system/indexer/indices/${indexName}/close` }; },
     delete: (indexName) => { return { url: `/system/indexer/indices/${indexName}` }; },
-    list: () => { return { url: '/system/indexer/indices' }; },
-    listClosed: () => { return { url: '/system/indexer/indices/closed' }; },
+    list: (indexSetId) => { return { url: `/system/indexer/indices/${indexSetId}/list` }; },
+    listAll: () => { return { url: '/system/indexer/indices' }; },
+    listClosed: (indexSetId) => { return { url: `/system/indexer/indices/${indexSetId}/closed` }; },
     multiple: () => { return { url: '/system/indexer/indices/multiple' }; },
     reopen: (indexName) => { return { url: `/system/indexer/indices/${indexName}/reopen` }; },
   },
@@ -131,10 +160,9 @@ const ApiRoutes = {
   StreamAlertsApiController: {
     create: (streamId) => { return { url: `/streams/${streamId}/alerts/conditions` }; },
     delete: (streamId, alertConditionId) => { return { url: `/streams/${streamId}/alerts/conditions/${alertConditionId}` }; },
+    get: (streamId, conditionId) => { return { url: `/streams/${streamId}/alerts/conditions/${conditionId}` }; },
     list: (streamId) => { return { url: `/streams/${streamId}/alerts/conditions` }; },
     update: (streamId, alertConditionId) => { return { url: `/streams/${streamId}/alerts/conditions/${alertConditionId}` }; },
-    addReceiver: (streamId, type, entity) => { return { url: `/streams/${streamId}/alerts/receivers?entity=${entity}&type=${type}` }; },
-    deleteReceiver: (streamId, type, entity) => { return { url: `/streams/${streamId}/alerts/receivers?entity=${entity}&type=${type}` }; },
     sendDummyAlert: (streamId) => { return { url: `/streams/${streamId}/alerts/sendDummyAlert` }; },
   },
   StreamsApiController: {
@@ -161,6 +189,7 @@ const ApiRoutes = {
     info: () => { return { url: '/system' }; },
     jvm: () => { return { url: '/system/jvm' }; },
     fields: () => { return { url: '/system/fields' }; },
+    locales: () => { return { url: '/system/locales' }; },
   },
   SystemJobsApiController: {
     list: () => { return { url: '/cluster/jobs' }; },
@@ -171,13 +200,15 @@ const ApiRoutes = {
     all: (page) => { return { url: `/system/messages?page=${page}` }; },
   },
   ToolsApiController: {
-    grokTest: () => { return { url: '/tools/grok_tester' };},
-    jsonTest: () => { return { url: '/tools/json_tester' };},
+    grokTest: () => { return { url: '/tools/grok_tester' }; },
+    jsonTest: () => { return { url: '/tools/json_tester' }; },
     naturalDateTest: (text) => { return { url: `/tools/natural_date_tester?string=${text}` }; },
-    regexTest: () => { return { url: '/tools/regex_tester' };},
-    regexReplaceTest: () => { return { url: '/tools/regex_replace_tester' };},
-    splitAndIndexTest: () => { return { url: '/tools/split_and_index_tester' };},
-    substringTest: () => { return { url: '/tools/substring_tester' };},
+    regexTest: () => { return { url: '/tools/regex_tester' }; },
+    regexReplaceTest: () => { return { url: '/tools/regex_replace_tester' }; },
+    splitAndIndexTest: () => { return { url: '/tools/split_and_index_tester' }; },
+    substringTest: () => { return { url: '/tools/substring_tester' }; },
+    containsStringTest: () => { return { url: '/tools/contains_string_tester' }; },
+    lookupTableTest: () => { return { url: '/tools/lookup_table_tester' }; },
   },
   UniversalSearchApiController: {
     _streamFilter(streamId) {
@@ -189,15 +220,15 @@ const ApiRoutes = {
       const streamFilter = this._streamFilter(streamId);
 
       queryString.query = query;
-      Object.keys(timerange).forEach(key => { queryString[key] = timerange[key]; });
-      Object.keys(streamFilter).forEach(key => { queryString[key] = streamFilter[key]; });
+      Object.keys(timerange).forEach((key) => { queryString[key] = timerange[key]; });
+      Object.keys(streamFilter).forEach((key) => { queryString[key] = streamFilter[key]; });
 
       return queryString;
     },
     _buildUrl(url, queryString) {
       return `${url}?${Qs.stringify(queryString)}`;
     },
-    search(type, query, timerange, streamId, limit, offset, sortField, sortOrder) {
+    search(type, query, timerange, streamId, limit, offset, sortField, sortOrder, decorate) {
       const url = `/search/universal/${type}`;
       const queryString = this._buildBaseQueryString(query, timerange, streamId);
 
@@ -209,6 +240,10 @@ const ApiRoutes = {
       }
       if (sortField && sortOrder) {
         queryString.sort = `${sortField}:${sortOrder}`;
+      }
+
+      if (decorate !== undefined) {
+        queryString.decorate = decorate;
       }
 
       return { url: this._buildUrl(url, queryString) };
@@ -237,11 +272,12 @@ const ApiRoutes = {
 
       return { url: this._buildUrl(url, queryString) };
     },
-    fieldHistogram(type, query, field, resolution, timerange, streamId) {
+    fieldHistogram(type, query, field, resolution, timerange, streamId, includeCardinality) {
       const url = `/search/universal/${type}/fieldhistogram`;
       const queryString = this._buildBaseQueryString(query, timerange, streamId);
       queryString.interval = resolution;
       queryString.field = field;
+      queryString.cardinality = includeCardinality;
       return { url: this._buildUrl(url, queryString) };
     },
     fieldStats(type, query, field, timerange, streamId) {
@@ -275,32 +311,15 @@ const ApiRoutes = {
   ExtractorsController: {
     create: (inputId) => { return { url: `/system/inputs/${inputId}/extractors` }; },
     delete: (inputId, extractorId) => { return { url: `/system/inputs/${inputId}/extractors/${extractorId}` }; },
-    newExtractor: (nodeId, inputId, extractorType, fieldName, index, messageId) => {
-      return { url: `/system/inputs/${nodeId}/${inputId}/extractors/new?extractor_type=${extractorType}&field=${fieldName}&example_index=${index}&example_id=${messageId}` };
-    },
     order: (inputId) => { return { url: `/system/inputs/${inputId}/extractors/order` }; },
     update: (inputId, extractorId) => { return { url: `/system/inputs/${inputId}/extractors/${extractorId}` }; },
   },
   MessagesController: {
-    single: (index, messageId) => { return { url: `/messages/${index}/${messageId}` }; },
     analyze: (index, string) => { return { url: `/messages/${index}/analyze?string=${string}` }; },
+    parse: () => { return { url: '/messages/parse' }; },
+    single: (index, messageId) => { return { url: `/messages/${index}/${messageId}` }; },
   },
-  NodesController: {
-    node: (nodeId) => { return { url: `/system/nodes/${nodeId}` }; },
-  },
-  SearchController: {
-    index: (query, rangetype, timerange) => {
-      let route;
-      if (query && rangetype && timerange) {
-        route = { url: `/search?q=${query}&${rangetype}=${timerange}` };
-      } else {
-        route = { url: '/search' };
-      }
-
-      return route;
-    },
-    showMessage: (index, messageId) => { return { url: `/messages/${index}/${messageId}` }; },
-  },
+  ping: () => { return { url: '/' }; },
 };
 
 export default ApiRoutes;

@@ -24,6 +24,7 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.cluster.Node;
 import org.graylog2.cluster.NodeNotFoundException;
 import org.graylog2.cluster.NodeService;
@@ -37,6 +38,7 @@ import org.graylog2.shared.security.RestPermissions;
 import retrofit2.Response;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.GET;
@@ -49,6 +51,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 import static javax.ws.rs.core.Response.Status.BAD_GATEWAY;
 
@@ -60,8 +63,9 @@ public class ClusterNodeMetricsResource extends ProxiedResource {
     @Inject
     public ClusterNodeMetricsResource(NodeService nodeService,
                                       RemoteInterfaceProvider remoteInterfaceProvider,
-                                      @Context HttpHeaders httpHeaders) {
-        super(httpHeaders, nodeService, remoteInterfaceProvider);
+                                      @Context HttpHeaders httpHeaders,
+                                      @Named("proxiedRequestsExecutorService") ExecutorService executorService) {
+        super(httpHeaders, nodeService, remoteInterfaceProvider, executorService);
     }
 
     private RemoteMetricsResource getResourceForNode(String nodeId) throws NodeNotFoundException {
@@ -91,6 +95,7 @@ public class ClusterNodeMetricsResource extends ProxiedResource {
     @ApiResponses(value = {
             @ApiResponse(code = 400, message = "Malformed body")
     })
+    @NoAuditEvent("only used to get multiple metric values")
     public MetricsSummaryResponse multipleMetrics(@ApiParam(name = "nodeId", value = "The id of the node whose metrics we want.", required = true)
                                                   @PathParam("nodeId") String nodeId,
                                                   @ApiParam(name = "Requested metrics", required = true)

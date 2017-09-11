@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
 import { Row, Col } from 'react-bootstrap';
 
@@ -31,6 +32,7 @@ const AppWithSearchBar = React.createClass({
   ],
   getInitialState() {
     return {
+      forceFetch: false,
       savedSearches: undefined,
       stream: undefined,
       searchesClusterConfig: undefined,
@@ -47,9 +49,12 @@ const AppWithSearchBar = React.createClass({
   componentWillUnmount() {
     SearchStore.unload();
   },
+  _resetForceFetch() {
+    this.setState({ forceFetch: false });
+  },
   _loadStream(streamId) {
     if (streamId) {
-      StreamsStore.get(streamId, (stream) => this.setState({ stream: stream }, this._updateSearchParams));
+      StreamsStore.get(streamId, stream => this.setState({ stream: stream }, this._updateSearchParams));
     } else {
       this.setState({ stream: undefined }, this._updateSearchParams);
     }
@@ -66,16 +71,19 @@ const AppWithSearchBar = React.createClass({
   },
   _decorateChildren(children) {
     return React.Children.map(children, (child) => {
-      return React.cloneElement(child, { searchConfig: this.state.searchesClusterConfig });
+      return React.cloneElement(child, { searchConfig: this.state.searchesClusterConfig, forceFetch: this.state.forceFetch });
     });
   },
   _searchBarShouldDisplayRefreshControls() {
     // Hide refresh controls on sources page
     return this.props.location.pathname !== Routes.SOURCES;
   },
+  _onExecuteSearch() {
+    this.setState({ forceFetch: true }, this._resetForceFetch);
+  },
   render() {
     if (this._isLoading()) {
-      return <Spinner/>;
+      return <Spinner />;
     }
 
     // TODO: Only show search bar if the user has the right permissions
@@ -87,7 +95,8 @@ const AppWithSearchBar = React.createClass({
         <SearchBar ref="searchBar" userPreferences={this.state.currentUser.preferences}
                    savedSearches={this.state.savedSearches}
                    config={this.state.searchesClusterConfig}
-                   displayRefreshControls={this._searchBarShouldDisplayRefreshControls()} />
+                   displayRefreshControls={this._searchBarShouldDisplayRefreshControls()}
+                   onExecuteSearch={this._onExecuteSearch} />
         <Row id="main-row">
           <Col md={12} id="main-content">
             {this._decorateChildren(this.props.children)}

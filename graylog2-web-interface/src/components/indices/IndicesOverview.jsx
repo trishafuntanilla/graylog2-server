@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { Col, Row } from 'react-bootstrap';
 import naturalSort from 'javascript-natural-sort';
@@ -6,10 +7,11 @@ import { ClosedIndexDetails, IndexDetails, IndexSummary } from 'components/indic
 
 const IndicesOverview = React.createClass({
   propTypes: {
-    closedIndices: React.PropTypes.array.isRequired,
-    deflector: React.PropTypes.object.isRequired,
-    indexDetails: React.PropTypes.object.isRequired,
-    indices: React.PropTypes.object.isRequired,
+    closedIndices: PropTypes.array.isRequired,
+    deflector: PropTypes.object.isRequired,
+    indexDetails: PropTypes.object.isRequired,
+    indices: PropTypes.object.isRequired,
+    indexSetId: PropTypes.string.isRequired,
   },
   _formatIndex(indexName, index) {
     const indexSummary = this.props.indices[indexName];
@@ -23,7 +25,8 @@ const IndicesOverview = React.createClass({
               <IndexDetails index={this.props.indexDetails[indexName]}
                             indexName={indexName}
                             indexRange={indexRange}
-                            isDeflector={indexSummary.is_deflector}/>
+                            indexSetId={this.props.indexSetId}
+                            isDeflector={indexSummary.is_deflector} />
             </span>
           </IndexSummary>
         </Col>

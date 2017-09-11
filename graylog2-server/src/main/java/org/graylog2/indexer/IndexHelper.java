@@ -17,106 +17,53 @@
 package org.graylog2.indexer;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSortedSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.graylog2.database.NotFoundException;
-import org.graylog2.indexer.ranges.IndexRange;
-import org.graylog2.indexer.ranges.IndexRangeService;
-import org.graylog2.plugin.indexer.searches.timeranges.TimeRange;
+import org.graylog2.plugin.Message;
 import org.graylog2.plugin.Tools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.graylog2.plugin.indexer.searches.timeranges.TimeRange;
 
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 public class IndexHelper {
-    private static final Logger LOG = LoggerFactory.getLogger(IndexHelper.class);
-
-    public static Set<String> getOldestIndices(Set<String> indexNames, int count) {
-        Set<String> r = Sets.newHashSet();
-
-        if (count < 0 || indexNames.size() <= count) {
-            return r;
+    public static Set<String> getOldestIndices(IndexSet indexSet, int count) {
+        final String[] managedIndicesNames = indexSet.getManagedIndices();
+        if (count <= 0 || managedIndicesNames.length <= count) {
+            return Collections.emptySet();
         }
 
-        Set<Integer> numbers = Sets.newHashSet();
-
-        for (String indexName : indexNames) {
-            numbers.add(Deflector.extractIndexNumber(indexName));
+        final List<Integer> numbers = new ArrayList<>(managedIndicesNames.length);
+        for (String indexName : managedIndicesNames) {
+            indexSet.extractIndexNumber(indexName).ifPresent(numbers::add);
         }
 
-        List<String> sorted = prependPrefixes(getPrefix(indexNames), Tools.asSortedList(numbers));
+        final List<String> sorted = prependPrefixes(indexSet.getIndexPrefix(), Tools.asSortedSet(numbers));
 
-        // Add last x entries to return set.
-        r.addAll(sorted.subList(0, count));
-
-        return r;
+        return ImmutableSet.copyOf(sorted.subList(0, count));
     }
 
-    public static QueryBuilder getTimestampRangeFilter(TimeRange range) throws InvalidRangeFormatException {
+    @Nullable
+    public static QueryBuilder getTimestampRangeFilter(TimeRange range) {
         if (range == null) {
             return null;
         }
 
-        return QueryBuilders.rangeQuery("timestamp")
+        return QueryBuilders.rangeQuery(Message.FIELD_TIMESTAMP)
                 .gte(Tools.buildElasticSearchTimeFormat(range.getFrom()))
                 .lte(Tools.buildElasticSearchTimeFormat(range.getTo()));
     }
 
-    private static String getPrefix(Set<String> names) {
-        if (names.isEmpty()) {
-            return "";
-        }
-
-        String name = (String) names.toArray()[0];
-        return name.substring(0, name.lastIndexOf("_"));
-    }
-
-    private static List<String> prependPrefixes(String prefix, List<Integer> numbers) {
-        List<String> r = Lists.newArrayList();
-
+    private static List<String> prependPrefixes(String prefix, Collection<Integer> numbers) {
+        final List<String> r = new ArrayList<>();
         for (int number : numbers) {
             r.add(prefix + "_" + number);
         }
 
         return r;
-    }
-
-    public static Set<String> determineAffectedIndices(IndexRangeService indexRangeService,
-                                                       Deflector deflector,
-                                                       TimeRange range) {
-        final Set<IndexRange> indexRanges = determineAffectedIndicesWithRanges(indexRangeService, deflector, range);
-        final ImmutableSet.Builder<String> indices = ImmutableSet.builder();
-        for (IndexRange indexRange : indexRanges) {
-            indices.add(indexRange.indexName());
-        }
-
-        return indices.build();
-    }
-
-    public static Set<IndexRange> determineAffectedIndicesWithRanges(IndexRangeService indexRangeService,
-                                                                     Deflector deflector,
-                                                                     TimeRange range) {
-        final ImmutableSortedSet.Builder<IndexRange> indices = ImmutableSortedSet.orderedBy(IndexRange.COMPARATOR);
-        for (IndexRange indexRange : indexRangeService.find(range.getFrom(), range.getTo())) {
-            indices.add(indexRange);
-        }
-
-        // Always include the deflector target
-        final String targetIndex = deflector.getCurrentActualTargetIndex();
-        if (targetIndex != null) {
-            try {
-                final IndexRange deflectorIndexRange = indexRangeService.get(targetIndex);
-                indices.add(deflectorIndexRange);
-            } catch (NotFoundException e) {
-                LOG.warn("Couldn't find latest deflector target index", e);
-            }
-        }
-
-        return indices.build();
     }
 }

@@ -23,7 +23,10 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.database.NotFoundException;
+import org.graylog2.events.ClusterEventBus;
 import org.graylog2.plugin.database.ValidationException;
 import org.graylog2.plugin.streams.Stream;
 import org.graylog2.plugin.streams.StreamRule;
@@ -36,6 +39,7 @@ import org.graylog2.shared.rest.resources.RestResource;
 import org.graylog2.shared.security.RestPermissions;
 import org.graylog2.streams.StreamRuleService;
 import org.graylog2.streams.StreamService;
+import org.graylog2.streams.events.StreamsChangedEvent;
 import org.hibernate.validator.constraints.NotEmpty;
 
 import javax.inject.Inject;
@@ -62,12 +66,15 @@ import java.util.List;
 public class StreamRuleResource extends RestResource {
     private final StreamRuleService streamRuleService;
     private final StreamService streamService;
+    private final ClusterEventBus clusterEventBus;
 
     @Inject
     public StreamRuleResource(StreamRuleService streamRuleService,
-                              StreamService streamService) {
+                              StreamService streamService,
+                              ClusterEventBus clusterEventBus) {
         this.streamRuleService = streamRuleService;
         this.streamService = streamService;
+        this.clusterEventBus = clusterEventBus;
     }
 
     @POST
@@ -75,15 +82,19 @@ public class StreamRuleResource extends RestResource {
     @ApiOperation(value = "Create a stream rule")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @AuditEvent(type = AuditEventTypes.STREAM_RULE_CREATE)
     public Response create(@ApiParam(name = "streamid", value = "The stream id this new rule belongs to.", required = true)
                            @PathParam("streamid") String streamId,
                            @ApiParam(name = "JSON body", required = true)
                            @Valid @NotNull CreateStreamRuleRequest cr) throws NotFoundException, ValidationException {
         checkPermission(RestPermissions.STREAMS_EDIT, streamId);
+        checkNotDefaultStream(streamId, "Cannot add stream rules to the default stream.");
 
         final Stream stream = streamService.load(streamId);
         final StreamRule streamRule = streamRuleService.create(streamId, cr);
         final String id = streamService.save(streamRule);
+
+        clusterEventBus.post(StreamsChangedEvent.create(stream.getId()));
 
         final SingleStreamRuleSummaryResponse response = SingleStreamRuleSummaryResponse.create(id);
 
@@ -104,6 +115,7 @@ public class StreamRuleResource extends RestResource {
     })
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @AuditEvent(type = AuditEventTypes.STREAM_RULE_UPDATE)
     public SingleStreamRuleSummaryResponse update(@ApiParam(name = "streamid", value = "The stream id this rule belongs to.", required = true)
                                                   @PathParam("streamid") String streamid,
                                                   @ApiParam(name = "streamRuleId", value = "The stream rule id we are updating", required = true)
@@ -111,12 +123,13 @@ public class StreamRuleResource extends RestResource {
                                                   @ApiParam(name = "JSON body", required = true)
                                                   @Valid @NotNull CreateStreamRuleRequest cr) throws NotFoundException, ValidationException {
         checkPermission(RestPermissions.STREAMS_EDIT, streamid);
+        checkNotDefaultStream(streamid, "Cannot update stream rules on default stream.");
 
         final StreamRule streamRule;
         streamRule = streamRuleService.load(streamRuleId);
 
         if (!streamRule.getStreamId().equals(streamid)) {
-            throw new NotFoundException();
+            throw new NotFoundException("Couldn't update stream rule " + streamRuleId + "in stream " + streamid);
         }
 
         final StreamRuleType streamRuleType = StreamRuleType.fromInteger(cr.type());
@@ -131,6 +144,7 @@ public class StreamRuleResource extends RestResource {
         streamRule.setDescription(cr.description());
 
         streamRuleService.save(streamRule);
+        clusterEventBus.post(StreamsChangedEvent.create(streamid));
 
         return SingleStreamRuleSummaryResponse.create(streamRule.getId());
     }
@@ -141,10 +155,12 @@ public class StreamRuleResource extends RestResource {
     @Timed
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @AuditEvent(type = AuditEventTypes.STREAM_RULE_UPDATE)
     @Deprecated
     public SingleStreamRuleSummaryResponse updateDeprecated(@PathParam("streamid") String streamid,
                                                             @PathParam("streamRuleId") String streamRuleId,
                                                             @Valid @NotNull CreateStreamRuleRequest cr) throws NotFoundException, ValidationException {
+        checkNotDefaultStream(streamid, "Cannot remove stream rule from default stream.");
         return update(streamid, streamRuleId, cr);
     }
 
@@ -182,17 +198,20 @@ public class StreamRuleResource extends RestResource {
             @ApiResponse(code = 404, message = "Stream rule not found."),
             @ApiResponse(code = 400, message = "Invalid ObjectId.")
     })
+    @AuditEvent(type = AuditEventTypes.STREAM_RULE_DELETE)
     public void delete(@ApiParam(name = "streamid", value = "The stream id this new rule belongs to.", required = true)
                        @PathParam("streamid") String streamid,
                        @ApiParam(name = "streamRuleId", required = true)
                        @PathParam("streamRuleId") @NotEmpty String streamRuleId) throws NotFoundException {
         checkPermission(RestPermissions.STREAMS_EDIT, streamid);
+        checkNotDefaultStream(streamid, "Cannot delete stream rule from default stream.");
 
         final StreamRule streamRule = streamRuleService.load(streamRuleId);
         if (streamRule.getStreamId().equals(streamid)) {
             streamRuleService.destroy(streamRule);
+            clusterEventBus.post(StreamsChangedEvent.create(streamid));
         } else {
-            throw new NotFoundException();
+            throw new NotFoundException("Couldn't delete stream rule " + streamRuleId + "in stream " + streamid);
         }
     }
 
@@ -210,5 +229,11 @@ public class StreamRuleResource extends RestResource {
         }
 
         return result;
+    }
+
+    private void checkNotDefaultStream(String streamId, String message) {
+        if (Stream.DEFAULT_STREAM_ID.equals(streamId)) {
+            throw new BadRequestException(message);
+        }
     }
 }

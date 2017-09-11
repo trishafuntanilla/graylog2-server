@@ -20,12 +20,14 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.auto.value.AutoValue;
+import org.graylog.autovalue.WithBeanGetter;
 import org.joda.time.DateTime;
 
 @AutoValue
+@WithBeanGetter
 @JsonAutoDetect
 public abstract class AlarmCallbackHistorySummary {
-    private static final String FIELD_ID = "_id";
+    private static final String FIELD_ID = "id";
     private static final String FIELD_ALARMCALLBACKCONFIGURATION = "alarmcallbackconfiguration";
     private static final String FIELD_ALERT_ID = "alert_id";
     private static final String FIELD_ALERTCONDITION_ID = "alertcondition_id";

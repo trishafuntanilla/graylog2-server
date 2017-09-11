@@ -1,12 +1,10 @@
-/// <reference path="../../../declarations/bluebird/bluebird.d.ts" />
-
 const UserNotification = require('util/UserNotification');
 const URLUtils = require('util/URLUtils');
 
 // Need to use explicit require here to be able to access the User interface
-import UsersStore = require('stores/users/UsersStore');
+import UsersStore = require("./UsersStore");
 
-import ApiRoutes = require('routing/ApiRoutes');
+const ApiRoutes = require('routing/ApiRoutes');
 const fetch = require('logic/rest/FetchProvider').default;
 
 interface Role {
@@ -51,7 +49,7 @@ const RolesStore = {
   },
 
   updateRole(rolename: string, role: Role): Promise<Role> {
-    const promise = fetch('PUT', URLUtils.qualifyUrl(ApiRoutes.RolesApiController.updateRole(rolename).url), role);
+    const promise = fetch('PUT', URLUtils.qualifyUrl(ApiRoutes.RolesApiController.updateRole(encodeURIComponent(rolename)).url), role);
 
     promise.then((newRole) => {
       UserNotification.success("Role \"" + newRole.name + "\" was updated successfully");
@@ -66,7 +64,7 @@ const RolesStore = {
   },
 
   deleteRole(rolename: string): Promise<string[]> {
-    const url = URLUtils.qualifyUrl(ApiRoutes.RolesApiController.deleteRole(rolename).url);
+    const url = URLUtils.qualifyUrl(ApiRoutes.RolesApiController.deleteRole(encodeURIComponent(rolename)).url);
     const promise = fetch('DELETE', url);
 
     promise.then(() => {
@@ -80,7 +78,7 @@ const RolesStore = {
     return promise;
   },
   getMembers(rolename: string): Promise<RoleMembership[]> {
-    const url = URLUtils.qualifyUrl(ApiRoutes.RolesApiController.loadMembers(rolename).url);
+    const url = URLUtils.qualifyUrl(ApiRoutes.RolesApiController.loadMembers(encodeURIComponent(rolename)).url);
     const promise = fetch('GET', url);
     promise.catch((error) => {
       if (error.additional.status !== 404) {
@@ -92,4 +90,4 @@ const RolesStore = {
   }
 };
 
-module.exports = RolesStore;
+export = RolesStore;

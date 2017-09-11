@@ -24,6 +24,8 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.cluster.NodeNotFoundException;
 import org.graylog2.cluster.NodeService;
 import org.graylog2.rest.RemoteInterfaceProvider;
@@ -36,6 +38,7 @@ import org.graylog2.shared.rest.resources.ProxiedResource;
 import org.graylog2.shared.security.RestPermissions;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
@@ -48,6 +51,7 @@ import javax.ws.rs.core.MediaType;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 @RequiresAuthentication
 @Api(value = "Cluster/InputState", description = "Cluster-wide input states")
@@ -57,8 +61,9 @@ public class ClusterInputStatesResource extends ProxiedResource {
     @Inject
     public ClusterInputStatesResource(NodeService nodeService,
                                       RemoteInterfaceProvider remoteInterfaceProvider,
-                                      @Context HttpHeaders httpHeaders) throws NodeNotFoundException {
-        super(httpHeaders, nodeService, remoteInterfaceProvider);
+                                      @Context HttpHeaders httpHeaders,
+                                      @Named("proxiedRequestsExecutorService") ExecutorService executorService) throws NodeNotFoundException {
+        super(httpHeaders, nodeService, remoteInterfaceProvider, executorService);
     }
 
     @GET
@@ -76,6 +81,7 @@ public class ClusterInputStatesResource extends ProxiedResource {
     @ApiResponses(value = {
             @ApiResponse(code = 404, message = "No such input."),
     })
+    @AuditEvent(type = AuditEventTypes.MESSAGE_INPUT_START)
     public Map<String, Optional<InputCreated>> start(@ApiParam(name = "inputId", required = true) @PathParam("inputId") String inputId) {
         return getForAllNodes(remoteResource -> remoteResource.start(inputId), createRemoteInterfaceProvider(RemoteInputStatesResource.class));
     }
@@ -87,6 +93,7 @@ public class ClusterInputStatesResource extends ProxiedResource {
     @ApiResponses(value = {
             @ApiResponse(code = 404, message = "No such input."),
     })
+    @AuditEvent(type = AuditEventTypes.MESSAGE_INPUT_STOP)
     public Map<String, Optional<InputDeleted>> stop(@ApiParam(name = "inputId", required = true) @PathParam("inputId") String inputId) {
         return getForAllNodes(remoteResource -> remoteResource.stop(inputId), createRemoteInterfaceProvider(RemoteInputStatesResource.class));
     }

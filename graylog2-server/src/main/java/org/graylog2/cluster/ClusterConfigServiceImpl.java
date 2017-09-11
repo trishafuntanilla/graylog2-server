@@ -61,18 +61,17 @@ public class ClusterConfigServiceImpl implements ClusterConfigService {
     public ClusterConfigServiceImpl(final MongoJackObjectMapperProvider mapperProvider,
                                     final MongoConnection mongoConnection,
                                     final NodeId nodeId,
-                                    final ObjectMapper objectMapper,
                                     final ChainingClassLoader chainingClassLoader,
                                     final ClusterEventBus clusterEventBus) {
         this(JacksonDBCollection.wrap(prepareCollection(mongoConnection), ClusterConfig.class, String.class, mapperProvider.get()),
-                nodeId, objectMapper, chainingClassLoader, clusterEventBus);
+                nodeId, mapperProvider.get(), chainingClassLoader, clusterEventBus);
     }
 
-    ClusterConfigServiceImpl(final JacksonDBCollection<ClusterConfig, String> dbCollection,
-                             final NodeId nodeId,
-                             final ObjectMapper objectMapper,
-                             final ChainingClassLoader chainingClassLoader,
-                             final EventBus clusterEventBus) {
+    private ClusterConfigServiceImpl(final JacksonDBCollection<ClusterConfig, String> dbCollection,
+                                     final NodeId nodeId,
+                                     final ObjectMapper objectMapper,
+                                     final ChainingClassLoader chainingClassLoader,
+                                     final EventBus clusterEventBus) {
         this.nodeId = checkNotNull(nodeId);
         this.dbCollection = checkNotNull(dbCollection);
         this.objectMapper = checkNotNull(objectMapper);
@@ -93,26 +92,31 @@ public class ClusterConfigServiceImpl implements ClusterConfigService {
         try {
             return objectMapper.convertValue(payload, type);
         } catch (IllegalArgumentException e) {
-            LOG.debug("Error while deserializing payload", e);
+            LOG.error("Error while deserializing payload", e);
             return null;
         }
     }
 
     @Override
-    public <T> T get(Class<T> type) {
-        ClusterConfig config = dbCollection.findOne(DBQuery.is("type", type.getCanonicalName()));
+    public <T> T get(String key, Class<T> type) {
+        ClusterConfig config = dbCollection.findOne(DBQuery.is("type", key));
 
         if (config == null) {
-            LOG.debug("Couldn't find cluster config of type {}", type.getCanonicalName());
+            LOG.debug("Couldn't find cluster config of type {}", key);
             return null;
         }
 
         T result = extractPayload(config.payload(), type);
         if (result == null) {
-            LOG.error("Couldn't extract payload from cluster config (type: {})", type.getCanonicalName());
+            LOG.error("Couldn't extract payload from cluster config (type: {})", key);
         }
 
         return result;
+    }
+
+    @Override
+    public <T> T get(Class<T> type) {
+        return get(type.getCanonicalName(), type);
     }
 
     @Override

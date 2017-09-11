@@ -17,7 +17,6 @@
 package org.graylog2.rest.resources.system.ldap;
 
 import com.codahale.metrics.annotation.Timed;
-import com.google.common.base.Strings;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -27,6 +26,9 @@ import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.plugin.database.ValidationException;
 import org.graylog2.rest.models.system.ldap.requests.LdapSettingsRequest;
 import org.graylog2.rest.models.system.ldap.requests.LdapTestConfigRequest;
@@ -121,6 +123,7 @@ public class LdapResource extends RestResource {
     @Path("/test")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @NoAuditEvent("only used to test LDAP configuration")
     public LdapTestConfigResponse testLdapConfiguration(@ApiParam(name = "Configuration to test", required = true)
                                                         @Valid @NotNull LdapTestConfigRequest request) {
         final LdapConnectionConfig config = new LdapConnectionConfig();
@@ -208,6 +211,7 @@ public class LdapResource extends RestResource {
     @ApiOperation("Update the LDAP configuration")
     @Path("/settings")
     @Consumes(MediaType.APPLICATION_JSON)
+    @AuditEvent(type = AuditEventTypes.LDAP_CONFIGURATION_UPDATE)
     public void updateLdapSettings(@ApiParam(name = "JSON body", required = true)
                                    @Valid @NotNull LdapSettingsRequest request) throws ValidationException {
         // load the existing config, or create a new one. we only support having one, currently
@@ -238,6 +242,7 @@ public class LdapResource extends RestResource {
     @RequiresPermissions(RestPermissions.LDAP_EDIT)
     @ApiOperation("Remove the LDAP configuration")
     @Path("/settings")
+    @AuditEvent(type = AuditEventTypes.LDAP_CONFIGURATION_DELETE)
     public void deleteLdapSettings() {
         ldapSettingsService.delete();
     }
@@ -257,6 +262,7 @@ public class LdapResource extends RestResource {
     @ApiOperation(value = "Update the LDAP group to Graylog role mapping", notes = "Corresponds directly to the output of GET /system/ldap/settings/groups")
     @Path("/settings/groups")
     @Consumes(MediaType.APPLICATION_JSON)
+    @AuditEvent(type = AuditEventTypes.LDAP_GROUP_MAPPING_UPDATE)
     public Response updateGroupMappingSettings(@ApiParam(name = "JSON body", required = true, value = "A hash in which the keys are the LDAP group names and values is the Graylog role name.")
                                    @NotNull Map<String, String> groupMapping) throws ValidationException {
         final LdapSettings ldapSettings = firstNonNull(ldapSettingsService.load(), ldapSettingsFactory.createEmpty());
@@ -278,7 +284,7 @@ public class LdapResource extends RestResource {
         if (!ldapSettings.isEnabled()) {
             throw new BadRequestException("LDAP is disabled.");
         }
-        if (Strings.isNullOrEmpty(ldapSettings.getGroupSearchBase()) || Strings.isNullOrEmpty(ldapSettings.getGroupIdAttribute())) {
+        if (isNullOrEmpty(ldapSettings.getGroupSearchBase()) || isNullOrEmpty(ldapSettings.getGroupIdAttribute())) {
             throw new BadRequestException("LDAP group configuration settings are not set.");
         }
 

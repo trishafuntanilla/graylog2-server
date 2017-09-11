@@ -35,6 +35,8 @@ public interface InputService extends PersistedService {
 
     Input create(Map<String, Object> fields);
 
+    String update(Input model) throws ValidationException;
+
     Input find(String id) throws NotFoundException;
 
     Input findForThisNode(String nodeId, String id) throws NotFoundException;
@@ -90,6 +92,8 @@ public interface InputService extends PersistedService {
     List<Extractor> getExtractors(Input input);
 
     Extractor getExtractor(Input input, String extractorId) throws NotFoundException;
+
+    void updateExtractor(Input input, Extractor extractor) throws ValidationException;
 
     void removeExtractor(Input input, String extractorId);
 

@@ -16,51 +16,66 @@
  */
 package org.graylog2.indexer.retention.strategies;
 
-import com.google.common.base.Optional;
 import com.google.common.base.Stopwatch;
-import org.graylog2.indexer.Deflector;
+import com.google.common.collect.ImmutableMap;
+import org.graylog2.audit.AuditActor;
+import org.graylog2.audit.AuditEventSender;
+import org.graylog2.indexer.IndexSet;
+import org.graylog2.indexer.indexset.IndexSetConfig;
 import org.graylog2.indexer.indices.Indices;
-import org.graylog2.plugin.cluster.ClusterConfigService;
 import org.graylog2.plugin.indexer.retention.RetentionStrategyConfig;
+import org.graylog2.plugin.system.NodeId;
 import org.graylog2.shared.system.activities.ActivityWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+
+import static org.graylog2.audit.AuditEventTypes.ES_INDEX_RETENTION_CLOSE;
 
 public class ClosingRetentionStrategy extends AbstractIndexCountBasedRetentionStrategy {
     private static final Logger LOG = LoggerFactory.getLogger(ClosingRetentionStrategy.class);
 
     private final Indices indices;
-    private final ClusterConfigService clusterConfigService;
+    private final NodeId nodeId;
+    private final AuditEventSender auditEventSender;
 
     @Inject
-    public ClosingRetentionStrategy(Deflector deflector,
-                                    Indices indices,
+    public ClosingRetentionStrategy(Indices indices,
                                     ActivityWriter activityWriter,
-                                    ClusterConfigService clusterConfigService) {
-        super(deflector, indices, activityWriter);
+                                    NodeId nodeId,
+                                    AuditEventSender auditEventSender) {
+        super(indices, activityWriter);
         this.indices = indices;
-        this.clusterConfigService = clusterConfigService;
+        this.nodeId = nodeId;
+        this.auditEventSender = auditEventSender;
     }
 
     @Override
-    protected Optional<Integer> getMaxNumberOfIndices() {
-        final ClosingRetentionStrategyConfig config = clusterConfigService.get(ClosingRetentionStrategyConfig.class);
+    protected Optional<Integer> getMaxNumberOfIndices(IndexSet indexSet) {
+        final IndexSetConfig indexSetConfig = indexSet.getConfig();
+        final RetentionStrategyConfig strategyConfig = indexSetConfig.retentionStrategy();
 
-        if (config != null) {
-            return Optional.of(config.maxNumberOfIndices());
-        } else {
-            return Optional.absent();
+        if (!(strategyConfig instanceof ClosingRetentionStrategyConfig)) {
+            throw new IllegalStateException("Invalid retention strategy config <" + strategyConfig.getClass().getCanonicalName() + "> for index set <" + indexSetConfig.id() + ">");
         }
+
+        final ClosingRetentionStrategyConfig config = (ClosingRetentionStrategyConfig) strategyConfig;
+
+        return Optional.of(config.maxNumberOfIndices());
     }
 
     @Override
-    public void retain(String indexName) {
+    public void retain(String indexName, IndexSet indexSet) {
         final Stopwatch sw = Stopwatch.createStarted();
 
         indices.close(indexName);
+        auditEventSender.success(AuditActor.system(nodeId), ES_INDEX_RETENTION_CLOSE, ImmutableMap.of(
+                "index_name", indexName,
+                "retention_strategy", this.getClass().getCanonicalName()
+        ));
 
         LOG.info("Finished index retention strategy [close] for index <{}> in {}ms.", indexName,
                 sw.stop().elapsed(TimeUnit.MILLISECONDS));

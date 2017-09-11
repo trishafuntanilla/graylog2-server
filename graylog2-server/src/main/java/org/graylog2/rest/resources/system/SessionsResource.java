@@ -16,6 +16,7 @@
  */
 package org.graylog2.rest.resources.system;
 
+import com.google.common.collect.ImmutableMap;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -29,7 +30,14 @@ import org.apache.shiro.session.Session;
 import org.apache.shiro.session.UnknownSessionException;
 import org.apache.shiro.subject.Subject;
 import org.apache.shiro.util.ThreadContext;
+import org.glassfish.grizzly.http.server.Request;
+import org.graylog2.audit.AuditActor;
+import org.graylog2.audit.AuditEventSender;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.plugin.database.users.User;
+import org.graylog2.rest.RestTools;
 import org.graylog2.rest.models.system.sessions.requests.SessionCreateRequest;
 import org.graylog2.rest.models.system.sessions.responses.SessionResponse;
 import org.graylog2.rest.models.system.sessions.responses.SessionValidationResponse;
@@ -37,12 +45,14 @@ import org.graylog2.shared.rest.resources.RestResource;
 import org.graylog2.shared.security.ShiroAuthenticationFilter;
 import org.graylog2.shared.security.ShiroSecurityContext;
 import org.graylog2.shared.users.UserService;
+import org.graylog2.utilities.IpSubnet;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.Consumes;
@@ -60,7 +70,11 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.SecurityContext;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static org.graylog2.audit.AuditEventTypes.SESSION_CREATE;
 
 @Path("/system/sessions")
 @Api(value = "System/Sessions", description = "Login for interactive user sessions")
@@ -72,21 +86,32 @@ public class SessionsResource extends RestResource {
     private final UserService userService;
     private final DefaultSecurityManager securityManager;
     private final ShiroAuthenticationFilter authenticationFilter;
+    private final AuditEventSender auditEventSender;
+    private final Set<IpSubnet> trustedSubnets;
+    private final Request grizzlyRequest;
+
 
     @Inject
     public SessionsResource(UserService userService,
                             DefaultSecurityManager securityManager,
-                            ShiroAuthenticationFilter authenticationFilter) {
+                            ShiroAuthenticationFilter authenticationFilter,
+                            AuditEventSender auditEventSender,
+                            @Named("trusted_proxies") Set<IpSubnet> trustedSubnets,
+                            @Context Request grizzlyRequest) {
         this.userService = userService;
         this.securityManager = securityManager;
         this.authenticationFilter = authenticationFilter;
+        this.auditEventSender = auditEventSender;
+        this.trustedSubnets = trustedSubnets;
+        this.grizzlyRequest = grizzlyRequest;
     }
 
     @POST
     @ApiOperation(value = "Create a new session", notes = "This request creates a new session for a user or reactivates an existing session: the equivalent of logging in.")
+    @NoAuditEvent("dispatches audit events in the method body")
     public SessionResponse newSession(@Context ContainerRequestContext requestContext,
-                              @ApiParam(name = "Login request", value = "Username and credentials", required = true)
-                              @Valid @NotNull SessionCreateRequest createRequest) {
+                                      @ApiParam(name = "Login request", value = "Username and credentials", required = true)
+                                      @Valid @NotNull SessionCreateRequest createRequest) {
         final SecurityContext securityContext = requestContext.getSecurityContext();
         if (!(securityContext instanceof ShiroSecurityContext)) {
             throw new InternalServerErrorException("Unsupported SecurityContext class, this is a bug!");
@@ -99,20 +124,23 @@ public class SessionsResource extends RestResource {
         if (sessionId != null && !sessionId.isEmpty()) {
             id = sessionId;
         }
-        final Subject subject = new Subject.Builder().sessionId(id).buildSubject();
-        ThreadContext.bind(subject);
 
+        final String remoteAddrFromRequest = RestTools.getRemoteAddrFromRequest(grizzlyRequest, trustedSubnets);
+        final Subject subject = new Subject.Builder().sessionId(id).host(remoteAddrFromRequest).buildSubject();
+        ThreadContext.bind(subject);
+        final Session s = subject.getSession();
         try {
+
             subject.login(new UsernamePasswordToken(createRequest.username(), createRequest.password()));
             final User user = userService.load(createRequest.username());
             if (user != null) {
                 long timeoutInMillis = user.getSessionTimeoutMs();
-                subject.getSession().setTimeout(timeoutInMillis);
+                s.setTimeout(timeoutInMillis);
             } else {
                 // set a sane default. really we should be able to load the user from above.
-                subject.getSession().setTimeout(TimeUnit.HOURS.toMillis(8));
+                s.setTimeout(TimeUnit.HOURS.toMillis(8));
             }
-            subject.getSession().touch();
+            s.touch();
 
             // save subject in session, otherwise we can't get the username back in subsequent requests.
             ((DefaultSecurityManager) SecurityUtils.getSecurityManager()).getSubjectDAO().save(subject);
@@ -122,14 +150,27 @@ public class SessionsResource extends RestResource {
         } catch (UnknownSessionException e) {
             subject.logout();
         }
+
         if (subject.isAuthenticated()) {
-            final Session session = subject.getSession();
-            id = session.getId();
+            id = s.getId();
+
+            final Map<String, Object> auditEventContext = ImmutableMap.of(
+                    "session_id", id,
+                    "remote_address", remoteAddrFromRequest
+            );
+            auditEventSender.success(AuditActor.user(createRequest.username()), SESSION_CREATE, auditEventContext);
+
             // TODO is the validUntil attribute even used by anyone yet?
-            return SessionResponse.create(new DateTime(session.getLastAccessTime(), DateTimeZone.UTC).plus(session.getTimeout()).toDate(),
+            return SessionResponse.create(new DateTime(s.getLastAccessTime(), DateTimeZone.UTC).plus(s.getTimeout()).toDate(),
                     id.toString());
+        } else {
+            final Map<String, Object> auditEventContext = ImmutableMap.of(
+                    "remote_address", remoteAddrFromRequest
+            );
+            auditEventSender.failure(AuditActor.user(createRequest.username()), SESSION_CREATE, auditEventContext);
+
+            throw new NotAuthorizedException("Invalid username or password", "Basic realm=\"Graylog Server session\"");
         }
-        throw new NotAuthorizedException("Invalid username or password", "Basic realm=\"Graylog Server session\"");
     }
 
     @GET
@@ -148,6 +189,17 @@ public class SessionsResource extends RestResource {
             return SessionValidationResponse.invalid();
         }
 
+        // there's no valid session, but the authenticator would like us to create one
+        if (subject.getSession(false) == null && ShiroSecurityContext.isSessionCreationRequested()) {
+            final Session session = subject.getSession();
+            LOG.debug("Session created {}", session.getId());
+            session.touch();
+            // save subject in session, otherwise we can't get the username back in subsequent requests.
+            ((DefaultSecurityManager) SecurityUtils.getSecurityManager()).getSubjectDAO().save(subject);
+
+            return SessionValidationResponse.validWithNewSession(String.valueOf(session.getId()),
+                                                                 String.valueOf(subject.getPrincipal()));
+        }
         return SessionValidationResponse.valid();
     }
 
@@ -155,6 +207,7 @@ public class SessionsResource extends RestResource {
     @ApiOperation(value = "Terminate an existing session", notes = "Destroys the session with the given ID: the equivalent of logging out.")
     @Path("/{sessionId}")
     @RequiresAuthentication
+    @AuditEvent(type = AuditEventTypes.SESSION_DELETE)
     public void terminateSession(@ApiParam(name = "sessionId", required = true) @PathParam("sessionId") String sessionId) {
         final Subject subject = getSubject();
         securityManager.logout(subject);

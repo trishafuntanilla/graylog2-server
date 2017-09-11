@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
 import { Col } from 'react-bootstrap';
@@ -14,8 +15,8 @@ import { Spinner } from 'components/common';
 
 const LogLevelMetrics = React.createClass({
   propTypes: {
-    nodeId: React.PropTypes.string.isRequired,
-    loglevel: React.PropTypes.string.isRequired,
+    nodeId: PropTypes.string.isRequired,
+    loglevel: PropTypes.string.isRequired,
   },
   mixins: [Reflux.connect(MetricsStore)],
   componentDidMount() {
@@ -25,14 +26,14 @@ const LogLevelMetrics = React.createClass({
     MetricsActions.remove(this.props.nodeId, this._metricName());
   },
   _metricName() {
-    return 'org.apache.logging.log4j.core.Appender.' + this.props.loglevel;
+    return `org.apache.logging.log4j.core.Appender.${this.props.loglevel}`;
   },
   render() {
     const { loglevel, nodeId } = this.props;
     const { metrics } = this.state;
     let metricsDetails;
     if (!metrics || !metrics[nodeId] || !metrics[nodeId][this._metricName()]) {
-      metricsDetails =  <Spinner />;
+      metricsDetails = <Spinner />;
     } else {
       const metric = metrics[nodeId][this._metricName()].metric;
       metricsDetails = (

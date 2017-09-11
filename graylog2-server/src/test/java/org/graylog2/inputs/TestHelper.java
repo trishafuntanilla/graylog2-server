@@ -28,21 +28,24 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPOutputStream;
 
 public class TestHelper {
 
-    public static byte[] zlibCompress(String what) {
-        byte[] input = what.getBytes(StandardCharsets.UTF_8);
+    public static byte[] zlibCompress(String what, int level) throws IOException {
+        final ByteArrayInputStream compressMe = new ByteArrayInputStream(what.getBytes(StandardCharsets.UTF_8));
+        final ByteArrayOutputStream compressedMessage = new ByteArrayOutputStream();
 
-        // Compress the bytes
-        byte[] output = new byte[4096];
-        Deflater compresser = new Deflater();
-        compresser.setInput(input);
-        compresser.finish();
-        compresser.deflate(output);
+        try (DeflaterOutputStream out = new DeflaterOutputStream(compressedMessage, new Deflater(level))) {
+            ByteStreams.copy(compressMe, out);
+        }
 
-        return output;
+        return compressedMessage.toByteArray();
+    }
+
+    public static byte[] zlibCompress(String what) throws IOException {
+        return zlibCompress(what, -1);
     }
 
     public static byte[] gzipCompress(String what) throws IOException {
@@ -50,7 +53,7 @@ public class TestHelper {
         final ByteArrayInputStream compressMe = new ByteArrayInputStream(what.getBytes(StandardCharsets.UTF_8));
         final ByteArrayOutputStream compressedMessage = new ByteArrayOutputStream();
 
-        try(GZIPOutputStream out = new GZIPOutputStream(compressedMessage)) {
+        try (GZIPOutputStream out = new GZIPOutputStream(compressedMessage)) {
             ByteStreams.copy(compressMe, out);
         }
 

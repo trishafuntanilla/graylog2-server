@@ -17,11 +17,15 @@
 package org.graylog2.shared.rest.resources.documentation;
 
 import com.codahale.metrics.annotation.Timed;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableSet;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import org.graylog2.plugin.BaseConfiguration;
 import org.graylog2.plugin.rest.PluginRestResource;
+import org.graylog2.rest.RestTools;
+import org.graylog2.shared.plugins.PluginRestResourceClasses;
 import org.graylog2.shared.rest.documentation.generator.Generator;
 import org.graylog2.shared.rest.resources.RestResource;
 
@@ -31,42 +35,46 @@ import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.graylog2.shared.initializers.RestApiService.PLUGIN_PREFIX;
+import static org.graylog2.shared.initializers.JerseyService.PLUGIN_PREFIX;
 
 @Api(value = "Documentation", description = "Documentation of this API in JSON format.")
 @Path("/api-docs")
 public class DocumentationResource extends RestResource {
 
-    private BaseConfiguration configuration;
-    private final Set<String> restControllerPackages = new HashSet<>();
-    private final Map<Class<?>, String> pluginRestControllerMapping = new HashMap<>();
+    private final Generator generator;
+    private final BaseConfiguration configuration;
 
     @Inject
     public DocumentationResource(BaseConfiguration configuration,
                                  @Named("RestControllerPackages") String[] restControllerPackages,
-                                 Map<String, Set<PluginRestResource>> pluginRestResources) {
+                                 ObjectMapper objectMapper,
+                                 PluginRestResourceClasses pluginRestResourceClasses) {
 
         this.configuration = configuration;
 
-        this.restControllerPackages.addAll(Arrays.asList(restControllerPackages));
+        final ImmutableSet.Builder<String> packageNames = ImmutableSet.<String>builder()
+                .add(restControllerPackages);
 
         // All plugin resources get the plugin prefix + the plugin package.
-        for (Map.Entry<String, Set<PluginRestResource>> entry : pluginRestResources.entrySet()) {
+        final Map<Class<?>, String> pluginRestControllerMapping = new HashMap<>();
+        for (Map.Entry<String, Set<Class<? extends PluginRestResource>>> entry : pluginRestResourceClasses.getMap().entrySet()) {
             final String pluginPackage = entry.getKey();
-            this.restControllerPackages.add(pluginPackage);
+            packageNames.add(pluginPackage);
 
-            for (PluginRestResource pluginRestResource : entry.getValue()) {
-                this.pluginRestControllerMapping.put(pluginRestResource.getClass(), pluginPackage);
+            for (Class<? extends PluginRestResource> pluginRestResource : entry.getValue()) {
+                pluginRestControllerMapping.put(pluginRestResource, pluginPackage);
             }
         }
+
+        this.generator = new Generator(packageNames.build(), pluginRestControllerMapping, PLUGIN_PREFIX, objectMapper);
     }
 
     @GET
@@ -74,7 +82,7 @@ public class DocumentationResource extends RestResource {
     @ApiOperation(value = "Get API documentation")
     @Produces(MediaType.APPLICATION_JSON)
     public Response overview() {
-        return buildSuccessfulCORSResponse(new Generator(restControllerPackages, pluginRestControllerMapping, PLUGIN_PREFIX, objectMapper).generateOverview());
+        return buildSuccessfulCORSResponse(generator.generateOverview());
     }
 
     @GET
@@ -83,10 +91,10 @@ public class DocumentationResource extends RestResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Path("/{route: .+}")
     public Response route(@ApiParam(name = "route", value = "Route to fetch. For example /system", required = true)
-                          @PathParam("route") String route) {
-        return buildSuccessfulCORSResponse(
-                new Generator(restControllerPackages, pluginRestControllerMapping, PLUGIN_PREFIX, objectMapper).generateForRoute(route, configuration.getRestTransportUri().toString())
-        );
+                          @PathParam("route") String route,
+                          @Context HttpHeaders httpHeaders) {
+        final String basePath = RestTools.buildEndpointUri(httpHeaders, configuration.getWebEndpointUri());
+        return buildSuccessfulCORSResponse(generator.generateForRoute(route, basePath));
     }
 
     private Response buildSuccessfulCORSResponse(Map<String, Object> result) {

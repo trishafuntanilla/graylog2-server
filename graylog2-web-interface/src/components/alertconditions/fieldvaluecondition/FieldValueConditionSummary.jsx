@@ -1,18 +1,14 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 
 import GracePeriodSummary from 'components/alertconditions/GracePeriodSummary';
 import BacklogSummary from 'components/alertconditions/BacklogSummary';
+import RepeatNotificationsSummary from 'components/alertconditions/RepeatNotificationsSummary';
+import { Pluralize } from 'components/common';
 
 const FieldValueConditionSummary = React.createClass({
   propTypes: {
-    alertCondition: React.PropTypes.object.isRequired,
-  },
-  _formatTime(time) {
-    if (time === 1) {
-      return 'last minute';
-    }
-
-    return 'last ' + time + ' minutes';
+    alertCondition: PropTypes.object.isRequired,
   },
   render() {
     const alertCondition = this.props.alertCondition;
@@ -25,11 +21,15 @@ const FieldValueConditionSummary = React.createClass({
     return (
       <span>
         Alert is triggered when the field {field} has a {thresholdType}
-        {' '}{type} value than {threshold} in the {this._formatTime(time)}.
+        {' '}{type} value than {threshold} in the
+        {' '}
+        <Pluralize value={time} singular="last minute" plural={`last ${time} minutes`} />.
         {' '}
         <GracePeriodSummary alertCondition={alertCondition} />
         {' '}
-        <BacklogSummary alertCondition={alertCondition}/>
+        <BacklogSummary alertCondition={alertCondition} />
+        {' '}
+        <RepeatNotificationsSummary alertCondition={alertCondition} />
       </span>
     );
   },

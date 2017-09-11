@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { Button } from 'react-bootstrap';
 
@@ -5,15 +6,15 @@ import StoreProvider from 'injection/StoreProvider';
 const UsersStore = StoreProvider.getStore('Users');
 const StartpageStore = StoreProvider.getStore('Startpage');
 
-import PageHeader from 'components/common/PageHeader';
-import Spinner from 'components/common/Spinner';
+import { DocumentTitle, PageHeader, Spinner } from 'components/common';
 import UserForm from 'components/users/UserForm';
 
 import UserPreferencesButton from 'components/users/UserPreferencesButton';
 
 const EditUsersPage = React.createClass({
   propTypes: {
-    params: React.PropTypes.object.isRequired,
+    params: PropTypes.object.isRequired,
+    history: PropTypes.object,
   },
   getInitialState() {
     return {
@@ -53,24 +54,26 @@ const EditUsersPage = React.createClass({
     }
 
     const userPreferencesButton = !user.read_only ?
-      <span id="react-user-preferences-button" data-user-name={this.props.params.username}>
+      (<span id="react-user-preferences-button" data-user-name={this.props.params.username}>
         <UserPreferencesButton userName={user.username} />
-      </span>
+      </span>)
       : null;
 
     return (
-      <span>
-        <PageHeader title={<span>Edit user <em>{this.props.params.username}</em></span>}>
-          <span>You can either change the details of a user here or set a new password.</span>
-          {null}
-          <div>
-            {resetStartpageButton}{' '}
-            {userPreferencesButton}
-          </div>
-        </PageHeader>
+      <DocumentTitle title={`Edit user ${this.props.params.username}`}>
+        <span>
+          <PageHeader title={<span>Edit user <em>{this.props.params.username}</em></span>} subpage>
+            <span>You can either change the details of a user here or set a new password.</span>
+            {null}
+            <div>
+              {resetStartpageButton}{' '}
+              {userPreferencesButton}
+            </div>
+          </PageHeader>
 
-        <UserForm user={this.state.user} />
-      </span>
+          <UserForm user={this.state.user} history={this.props.history} />
+        </span>
+      </DocumentTitle>
     );
   },
 });

@@ -2,7 +2,8 @@ import Reflux from 'reflux';
 
 import URLUtils from 'util/URLUtils';
 import ApiRoutes from 'routing/ApiRoutes';
-import fetch from 'logic/rest/FetchProvider';
+import fetch, { Builder, fetchPeriodically } from 'logic/rest/FetchProvider';
+import TimeHelper from 'util/TimeHelper';
 
 import StoreProvider from 'injection/StoreProvider';
 const SessionStore = StoreProvider.getStore('Session');
@@ -17,6 +18,7 @@ const MetricsStore = Reflux.createStore({
   namespace: 'org',
   registrations: {},
   globalRegistrations: {},
+  promises: {},
 
   init() {
     this.listenTo(NodesStore, this.updateNodes);
@@ -32,59 +34,74 @@ const MetricsStore = Reflux.createStore({
     let result = Promise.resolve(null);
 
     promises.forEach((promise) => {
-      result = result.then(() => promise).then((value) => accumulator.push(value), (error) => accumulator.push(error));
+      result = result.then(() => promise).then(value => accumulator.push(value), error => accumulator.push(error));
     });
 
     return result.then(() => accumulator);
   },
-  list() {
-    if (!SessionStore.isLoggedIn()) {
-      return;
-    }
+  _metricsToFetch(localRegistrations, globalRegistrations) {
     const metricsToFetch = {};
 
     // First collect all node metric registrations
-    Object.keys(this.registrations)
-      .filter((nodeId) => Object.keys(this.registrations[nodeId].length > 0))
+    Object.keys(localRegistrations)
+      .filter(nodeId => Object.keys(localRegistrations[nodeId].length > 0))
       .forEach((nodeId) => {
-        Object.keys(this.registrations[nodeId])
-          .filter((metricName) => this.registrations[nodeId][metricName] > 0)
+        Object.keys(localRegistrations[nodeId])
+          .filter(metricName => localRegistrations[nodeId][metricName] > 0)
           .forEach((metricName) => {
             metricsToFetch[metricName] = 1;
           });
       });
 
     // Then collect all global metric registrations
-    Object.keys(this.globalRegistrations)
-      .filter((metricName) => this.globalRegistrations[metricName] > 0)
+    Object.keys(globalRegistrations)
+      .filter(metricName => globalRegistrations[metricName] > 0)
       .forEach((metricName) => {
         metricsToFetch[metricName] = 1;
       });
+    return metricsToFetch;
+  },
+  _buildMetricsFromResponse(response) {
+    const metrics = {};
+    Object.keys(response)
+      .forEach((nodeId) => {
+        const nodeMetrics = {};
 
-    const url = URLUtils.qualifyUrl(ApiRoutes.ClusterMetricsApiController.multipleAllNodes().url);
-    const promise = fetch('POST', url, { metrics: Object.keys(metricsToFetch) });
-
-    promise.then((response) => {
-      const metrics = {};
-      Object.keys(response)
-        .forEach((nodeId) => {
-          const nodeMetrics = {};
-
-          if (!response[nodeId]) {
-            return;
-          }
-          response[nodeId].metrics.forEach((metric) => {
-            nodeMetrics[metric.full_name] = metric;
-          });
-
-          metrics[nodeId] = nodeMetrics;
+        if (!response[nodeId]) {
+          return;
+        }
+        response[nodeId].metrics.forEach((metric) => {
+          nodeMetrics[metric.full_name] = metric;
         });
-      this.trigger({ metrics: metrics });
-      this.metrics = metrics;
-      return metrics;
-    });
 
-    MetricsActions.list.promise(promise);
+        metrics[nodeId] = nodeMetrics;
+      });
+
+    return metrics;
+  },
+  list() {
+    if (!SessionStore.isLoggedIn()) {
+      return;
+    }
+
+    const metricsToFetch = this._metricsToFetch(this.registrations, this.globalRegistrations);
+    const url = URLUtils.qualifyUrl(ApiRoutes.ClusterMetricsApiController.multipleAllNodes().url);
+
+    if (!this.promises.list) {
+      const promise = fetchPeriodically('POST', url, { metrics: Object.keys(metricsToFetch) })
+        .finally(() => delete this.promises.list);
+
+      promise.then((response) => {
+        this.metrics = this._buildMetricsFromResponse(response);
+        // The metricsUpdatedAt value is used by components to decide if they should be re-rendered
+        this.trigger({ metrics: this.metrics, metricsUpdatedAt: TimeHelper.nowInSeconds() });
+        return this.metrics;
+      });
+      this.promises.list = promise;
+    }
+
+    MetricsActions.list.promise(this.promises.list);
+    return this.promises.list;
   },
   names() {
     if (!this.nodes) {

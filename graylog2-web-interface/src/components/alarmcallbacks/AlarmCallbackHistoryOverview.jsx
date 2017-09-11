@@ -1,59 +1,50 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
+import moment from 'moment';
 import { Row, Col } from 'react-bootstrap';
 
-import StoreProvider from 'injection/StoreProvider';
-const AlarmCallbackHistoryStore = StoreProvider.getStore('AlarmCallbackHistory');
-const AlarmCallbacksStore = StoreProvider.getStore('AlarmCallbacks');
+import CombinedProvider from 'injection/CombinedProvider';
+const { AlarmCallbackHistoryStore } = CombinedProvider.get('AlarmCallbackHistory');
+const { AlertNotificationsStore } = CombinedProvider.get('AlertNotifications');
 
-import { Spinner } from 'components/common';
+import { EntityList, Spinner } from 'components/common';
 import { AlarmCallbackHistory } from 'components/alarmcallbacks';
 
 const AlarmCallbackHistoryOverview = React.createClass({
   propTypes: {
-    alertId: React.PropTypes.string.isRequired,
-    streamId: React.PropTypes.string.isRequired,
+    alertId: PropTypes.string.isRequired,
+    streamId: PropTypes.string.isRequired,
   },
-  mixins: [Reflux.connect(AlarmCallbacksStore)],
-  getInitialState() {
-    return {};
-  },
-  componentDidMount() {
-    this.loadData();
-  },
-  loadData() {
-    AlarmCallbackHistoryStore.listForAlert(this.props.streamId, this.props.alertId).done((histories) => {
-      this.setState({histories: histories});
-    });
-  },
+
+  mixins: [Reflux.connect(AlarmCallbackHistoryStore), Reflux.connect(AlertNotificationsStore)],
+
   _formatHistory(history) {
     return (
-      <li key={history._id}>
-        <AlarmCallbackHistory alarmCallbackHistory={history} types={this.state.types}/>
-      </li>
+      <AlarmCallbackHistory key={history.id} alarmCallbackHistory={history} types={this.state.availableNotifications} />
     );
   },
   _isLoading() {
-    return !(this.state.histories && this.state.types);
+    return !(this.state.histories && this.state.availableNotifications);
   },
   render() {
     if (this._isLoading()) {
       return <Spinner />;
     }
 
-    if (this.state.histories.length === 0) {
-      return (
-        <div><i>No history available.</i></div>
-      );
-    }
+    const histories = this.state.histories
+      .sort((h1, h2) => {
+        const h1Time = moment(h1.created_at);
+        const h2Time = moment(h2.created_at);
 
-    const histories = this.state.histories.map(this._formatHistory);
+        return (h1Time.isBefore(h2Time) ? -1 : h2Time.isBefore(h1Time) ? 1 : 0);
+      })
+      .map(this._formatHistory);
     return (
       <Row>
         <Col md={12}>
-          <ul className="alarm-callbacks">
-            {histories}
-          </ul>
+          <EntityList bsNoItemsStyle="info" noItemsText="No notifications were triggered during the alert."
+                      items={histories} />
         </Col>
       </Row>
     );

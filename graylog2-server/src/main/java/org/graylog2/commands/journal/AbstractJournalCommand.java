@@ -18,20 +18,24 @@ package org.graylog2.commands.journal;
 
 import com.google.inject.Module;
 import org.graylog2.Configuration;
+import org.graylog2.audit.AuditBindings;
+import org.graylog2.bindings.ConfigurationModule;
 import org.graylog2.bootstrap.CmdLineTool;
 import org.graylog2.plugin.KafkaJournalConfiguration;
+import org.graylog2.plugin.Plugin;
+import org.graylog2.plugin.ServerStatus;
 import org.graylog2.shared.bindings.SchedulerBindings;
+import org.graylog2.shared.bindings.ServerStatusBindings;
 import org.graylog2.shared.journal.KafkaJournal;
 import org.graylog2.shared.journal.KafkaJournalModule;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.graylog2.shared.plugins.ChainingClassLoader;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public abstract class AbstractJournalCommand extends CmdLineTool {
-    protected static final Logger log = LoggerFactory.getLogger(AbstractJournalCommand.class);
-
     protected static final Configuration configuration = new Configuration();
     protected final KafkaJournalConfiguration kafkaJournalConfiguration = new KafkaJournalConfiguration();
     protected KafkaJournal journal;
@@ -45,8 +49,16 @@ public abstract class AbstractJournalCommand extends CmdLineTool {
 
     @Override
     protected List<Module> getCommandBindings() {
-        return Arrays.<Module>asList(new SchedulerBindings(),
-                                     new KafkaJournalModule());
+        return Arrays.asList(new ConfigurationModule(configuration),
+                             new ServerStatusBindings(capabilities()),
+                             new SchedulerBindings(),
+                             new KafkaJournalModule(),
+                             new AuditBindings());
+    }
+
+    @Override
+    protected Set<ServerStatus.Capability> capabilities() {
+        return configuration.isMaster() ? Collections.singleton(ServerStatus.Capability.MASTER) : Collections.emptySet();
     }
 
     @Override
@@ -60,6 +72,11 @@ public abstract class AbstractJournalCommand extends CmdLineTool {
         return true;
     }
 
+    @Override
+    protected Set<Plugin> loadPlugins(String pluginPath, ChainingClassLoader chainingClassLoader) {
+        // these commands do not need plugins, which could cause problems because of not loaded config beans
+        return Collections.emptySet();
+    }
 
     @Override
     protected void startCommand() {

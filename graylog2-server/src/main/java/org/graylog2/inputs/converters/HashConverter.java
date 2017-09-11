@@ -21,15 +21,13 @@ import org.graylog2.plugin.inputs.Converter;
 
 import java.util.Map;
 
-/**
- * @author Lennart Koopmann <lennart@torch.sh>
- */
 public class HashConverter extends Converter {
 
     public HashConverter(Map<String, Object> config) {
         super(Type.HASH, config);
     }
 
+    @SuppressWarnings("WEAK_MESSAGE_DIGEST_MD5")
     @Override
     public Object convert(String value) {
         if (value == null || value.isEmpty()) {

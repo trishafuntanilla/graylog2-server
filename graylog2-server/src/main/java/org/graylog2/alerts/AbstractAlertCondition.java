@@ -23,6 +23,9 @@ import com.google.common.collect.Lists;
 import org.graylog2.plugin.MessageSummary;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.alarms.AlertCondition;
+import org.graylog2.plugin.configuration.fields.BooleanField;
+import org.graylog2.plugin.configuration.fields.ConfigurationField;
+import org.graylog2.plugin.configuration.fields.NumberField;
 import org.graylog2.plugin.database.EmbeddedPersistable;
 import org.graylog2.plugin.streams.Stream;
 import org.joda.time.DateTime;
@@ -31,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 public abstract class AbstractAlertCondition implements EmbeddedPersistable, AlertCondition {
@@ -43,6 +45,7 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
         DUMMY;
 
         @JsonValue
+        @Override
         public String toString() {
             return super.toString().toLowerCase(Locale.ENGLISH);
         }
@@ -50,15 +53,17 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
 
     protected final String id;
     protected final Stream stream;
-    protected final Type type;
+    protected final String type;
     protected final DateTime createdAt;
     protected final String creatorUserId;
     protected final int grace;
+    protected final int backlog;
+    protected final boolean repeatNotifications;
     protected final String title;
 
-    private final Map<String, Object> parameters;
+    private Map<String, Object> parameters;
 
-    protected AbstractAlertCondition(Stream stream, String id, Type type, DateTime createdAt, String creatorUserId, Map<String, Object> parameters, String title) {
+    protected AbstractAlertCondition(Stream stream, String id, String type, DateTime createdAt, String creatorUserId, Map<String, Object> parameters, String title) {
         this.title = title;
         if (id == null) {
             this.id = UUID.randomUUID().toString();
@@ -70,25 +75,21 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
         this.type = type;
         this.createdAt = createdAt;
         this.creatorUserId = creatorUserId;
-        this.parameters = parameters;
+        this.parameters = ImmutableMap.copyOf(parameters);
 
-        this.grace = getNumber(this.parameters.get("grace")).orElse(0).intValue();
+        this.grace = Tools.getNumber(this.parameters.get("grace"), 0).intValue();
+        this.backlog = Tools.getNumber(this.parameters.get("backlog"), 0).intValue();
+        this.repeatNotifications = (boolean) this.parameters.getOrDefault("repeat_notifications", false);
     }
-
-    protected abstract AlertCondition.CheckResult runCheck();
 
     @Override
     public String getId() {
         return id;
     }
 
-    public Type getType() {
-        return type;
-    }
-
     @Override
-    public String getTypeString() {
-        return type.toString();
+    public String getType() {
+        return type;
     }
 
     @Override
@@ -107,8 +108,13 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
     }
 
     @JsonIgnore
+    @Override
     public Stream getStream() {
         return stream;
+    }
+
+    protected void setParameters(Map<String, Object> parameters) {
+        this.parameters = ImmutableMap.copyOf(parameters);
     }
 
     @Override
@@ -118,7 +124,7 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
 
     @Override
     public Integer getBacklog() {
-        return getNumber(getParameters().get("backlog")).orElse(0).intValue();
+        return backlog;
     }
 
     @Override
@@ -131,7 +137,7 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
     public Map<String, Object> getPersistedFields() {
         return ImmutableMap.<String, Object>builder()
                 .put("id", id)
-                .put("type", type.toString().toLowerCase(Locale.ENGLISH))
+                .put("type", type)
                 .put("creator_user_id", creatorUserId)
                 .put("created_at", Tools.getISO8601String(createdAt))
                 .put("parameters", parameters)
@@ -144,10 +150,9 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
         return grace;
     }
 
-    public static class NoSuchAlertConditionTypeException extends Exception {
-        public NoSuchAlertConditionTypeException(String msg) {
-            super(msg);
-        }
+    @Override
+    public boolean shouldRepeatNotifications() {
+        return repeatNotifications;
     }
 
     public static class CheckResult implements AlertCondition.CheckResult {
@@ -172,18 +177,22 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
             }
         }
 
+        @Override
         public boolean isTriggered() {
             return isTriggered;
         }
 
+        @Override
         public String getResultDescription() {
             return resultDescription;
         }
 
+        @Override
         public AlertCondition getTriggeredCondition() {
             return triggeredCondition;
         }
 
+        @Override
         public DateTime getTriggeredAt() {
             return triggeredAt;
         }
@@ -195,20 +204,16 @@ public abstract class AbstractAlertCondition implements EmbeddedPersistable, Ale
     }
 
     public static class NegativeCheckResult extends CheckResult {
-        public NegativeCheckResult(AlertCondition alertCondition) {
-            super(false, alertCondition, null, null, null);
+        public NegativeCheckResult() {
+            super(false, null, null, null, null);
         }
     }
 
-    protected Optional<Number> getNumber(Object o) {
-        if (o instanceof Number) {
-            return Optional.of((Number)o);
-        }
-
-        try {
-            return Optional.of(Double.valueOf(String.valueOf(o)));
-        } catch (NumberFormatException e) {
-            return Optional.empty();
-        }
+    public static List<ConfigurationField> getDefaultConfigurationFields() {
+        return Lists.newArrayList(
+            new NumberField("grace", "Grace Period", 0, "Number of minutes to wait after an alert is resolved, to trigger another alert", ConfigurationField.Optional.NOT_OPTIONAL),
+            new NumberField("backlog", "Message Backlog", 0, "The number of messages to be included in alert notifications", ConfigurationField.Optional.NOT_OPTIONAL),
+            new BooleanField("repeat_notifications", "Repeat notifications", false, "Check this box to send notifications every time the alert condition is evaluated and satisfied regardless of its state.")
+        );
     }
 }

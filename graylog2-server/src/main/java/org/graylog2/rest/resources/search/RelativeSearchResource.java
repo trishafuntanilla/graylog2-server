@@ -23,8 +23,8 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.glassfish.jersey.server.ChunkedOutput;
+import org.graylog2.decorators.DecoratorProcessor;
 import org.graylog2.indexer.results.ScrollResult;
 import org.graylog2.indexer.searches.Searches;
 import org.graylog2.indexer.searches.SearchesConfig;
@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.ws.rs.BadRequestException;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -54,6 +55,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @RequiresAuthentication
 @Api(value = "Search/Relative", description = "Message search")
@@ -63,8 +65,10 @@ public class RelativeSearchResource extends SearchResource {
     private static final Logger LOG = LoggerFactory.getLogger(RelativeSearchResource.class);
 
     @Inject
-    public RelativeSearchResource(Searches searches, ClusterConfigService clusterConfigService) {
-        super(searches, clusterConfigService);
+    public RelativeSearchResource(Searches searches,
+                                  ClusterConfigService clusterConfigService,
+                                  DecoratorProcessor decoratorProcessor) {
+        super(searches, clusterConfigService, decoratorProcessor);
     }
 
     @GET
@@ -84,7 +88,8 @@ public class RelativeSearchResource extends SearchResource {
             @ApiParam(name = "offset", value = "Offset", required = false) @QueryParam("offset") int offset,
             @ApiParam(name = "filter", value = "Filter", required = false) @QueryParam("filter") String filter,
             @ApiParam(name = "fields", value = "Comma separated list of fields to return", required = false) @QueryParam("fields") String fields,
-            @ApiParam(name = "sort", value = "Sorting (field:asc / field:desc)", required = false) @QueryParam("sort") String sort) {
+            @ApiParam(name = "sort", value = "Sorting (field:asc / field:desc)", required = false) @QueryParam("sort") String sort,
+            @ApiParam(name = "decorate", value = "Run decorators on search result", required = false) @QueryParam("decorate") @DefaultValue("true") boolean decorate) {
         checkSearchPermission(filter, RestPermissions.SEARCHES_RELATIVE);
 
         final List<String> fieldList = parseOptionalFields(fields);
@@ -101,11 +106,9 @@ public class RelativeSearchResource extends SearchResource {
                 .sorting(sorting)
                 .build();
 
-        try {
-            return buildSearchResponse(searches.search(searchesConfig), timeRange);
-        } catch (SearchPhaseExecutionException e) {
-            throw createRequestExceptionForParseFailure(query, e);
-        }
+        final Optional<String> streamId = Searches.extractStreamId(filter);
+
+        return buildSearchResponse(searches.search(searchesConfig), timeRange, decorate, streamId);
     }
 
     @GET
@@ -130,13 +133,9 @@ public class RelativeSearchResource extends SearchResource {
         final List<String> fieldList = parseFields(fields);
         final TimeRange timeRange = buildRelativeTimeRange(range);
 
-        try {
-            final ScrollResult scroll = searches
-                    .scroll(query, timeRange, limit, offset, fieldList, filter);
-            return buildChunkedOutput(scroll, limit);
-        } catch (SearchPhaseExecutionException e) {
-            throw createRequestExceptionForParseFailure(query, e);
-        }
+        final ScrollResult scroll = searches
+                .scroll(query, timeRange, limit, offset, fieldList, filter);
+        return buildChunkedOutput(scroll, limit);
     }
 
     @GET
@@ -180,14 +179,12 @@ public class RelativeSearchResource extends SearchResource {
             @QueryParam("query") @NotEmpty String query,
             @ApiParam(name = "size", value = "Maximum number of terms to return", required = false) @QueryParam("size") int size,
             @ApiParam(name = "range", value = "Relative timeframe to search in. See search method description.", required = true) @QueryParam("range") int range,
-            @ApiParam(name = "filter", value = "Filter", required = false) @QueryParam("filter") String filter) {
+            @ApiParam(name = "filter", value = "Filter", required = false) @QueryParam("filter") String filter,
+            @ApiParam(name = "order", value = "Sorting (field:asc / field:desc)", required = false) @QueryParam("order") String order) {
         checkSearchPermission(filter, RestPermissions.SEARCHES_RELATIVE);
 
-        try {
-            return buildTermsResult(searches.terms(field, size, query, filter, buildRelativeTimeRange(range)));
-        } catch (SearchPhaseExecutionException e) {
-            throw createRequestExceptionForParseFailure(query, e);
-        }
+        final Sorting sortOrder = buildSorting(order);
+        return buildTermsResult(searches.terms(field, size, query, filter, buildRelativeTimeRange(range), sortOrder.getDirection()));
     }
 
     @GET
@@ -212,13 +209,9 @@ public class RelativeSearchResource extends SearchResource {
             @ApiParam(name = "filter", value = "Filter", required = false) @QueryParam("filter") String filter) {
         checkSearchPermission(filter, RestPermissions.SEARCHES_RELATIVE);
 
-        try {
-            return buildTermsStatsResult(
-                    searches.termsStats(keyField, valueField, Searches.TermsStatsOrder.valueOf(order.toUpperCase(Locale.ENGLISH)), size, query, filter, buildRelativeTimeRange(range))
-            );
-        } catch (SearchPhaseExecutionException e) {
-            throw createRequestExceptionForParseFailure(query, e);
-        }
+        return buildTermsStatsResult(
+                searches.termsStats(keyField, valueField, Searches.TermsStatsOrder.valueOf(order.toUpperCase(Locale.ENGLISH)), size, query, filter, buildRelativeTimeRange(range))
+        );
     }
 
     @GET
@@ -241,11 +234,7 @@ public class RelativeSearchResource extends SearchResource {
             @ApiParam(name = "filter", value = "Filter", required = false) @QueryParam("filter") String filter) {
         checkSearchPermission(filter, RestPermissions.SEARCHES_RELATIVE);
 
-        try {
-            return buildFieldStatsResult(fieldStats(field, query, filter, buildRelativeTimeRange(range)));
-        } catch (SearchPhaseExecutionException e) {
-            throw createRequestExceptionForParseFailure(query, e);
-        }
+        return buildFieldStatsResult(fieldStats(field, query, filter, buildRelativeTimeRange(range)));
     }
 
     @GET
@@ -269,18 +258,14 @@ public class RelativeSearchResource extends SearchResource {
         interval = interval.toUpperCase(Locale.ENGLISH);
         validateInterval(interval);
 
-        try {
-            return buildHistogramResult(
-                    searches.histogram(
-                            query,
-                            Searches.DateHistogramInterval.valueOf(interval),
-                            filter,
-                            buildRelativeTimeRange(range)
-                    )
-            );
-        } catch (SearchPhaseExecutionException e) {
-            throw createRequestExceptionForParseFailure(query, e);
-        }
+        return buildHistogramResult(
+                searches.histogram(
+                        query,
+                        Searches.DateHistogramInterval.valueOf(interval),
+                        filter,
+                        buildRelativeTimeRange(range)
+                )
+        );
     }
 
     @GET
@@ -309,12 +294,8 @@ public class RelativeSearchResource extends SearchResource {
         interval = interval.toUpperCase(Locale.ENGLISH);
         validateInterval(interval);
 
-        try {
-            return buildHistogramResult(fieldHistogram(field, query, interval, filter, buildRelativeTimeRange(range),
-                                                       includeCardinality));
-        } catch (SearchPhaseExecutionException e) {
-            throw createRequestExceptionForParseFailure(query, e);
-        }
+        return buildHistogramResult(fieldHistogram(field, query, interval, filter, buildRelativeTimeRange(range),
+                                                   includeCardinality));
     }
 
     private TimeRange buildRelativeTimeRange(int range) {

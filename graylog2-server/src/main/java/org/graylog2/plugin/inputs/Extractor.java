@@ -16,12 +16,10 @@
  */
 package org.graylog2.plugin.inputs;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Predicate;
-import com.google.common.collect.ComparisonChain;
-import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.graylog2.plugin.Message;
@@ -38,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
@@ -58,7 +57,6 @@ public abstract class Extractor implements EmbeddedPersistable {
     public static final String FIELD_CONVERTERS = "converters";
     public static final String FIELD_CONVERTER_TYPE = "type";
     public static final String FIELD_CONVERTER_CONFIG = "config";
-    public static final ResultPredicate VALUE_NULL_PREDICATE = new ResultPredicate();
 
     public enum Type {
         SUBSTRING,
@@ -67,13 +65,14 @@ public abstract class Extractor implements EmbeddedPersistable {
         SPLIT_AND_INDEX,
         COPY_INPUT,
         GROK,
-        JSON;
+        JSON,
+        LOOKUP_TABLE;
 
         /**
          * Just like {@link #valueOf(String)} but uses the upper case string and doesn't throw exceptions.
          *
          * @param s the string representation of the extractor type.
-         * @return the actual {@link org.graylog2.plugin.inputs.Extractor.Type} or {@code null}.
+         * @return the actual {@link Type} or {@code null}.
          */
         public static Type fuzzyValueOf(String s) {
             try {
@@ -114,12 +113,20 @@ public abstract class Extractor implements EmbeddedPersistable {
 
     protected Pattern regexConditionPattern;
 
-    private final String totalTimerName;
+    private final Counter conditionHitsCounter;
+    private final Counter conditionMissesCounter;
+    private final Timer conditionTimer;
+    private final Timer executionTimer;
+    private final Timer converterTimer;
+    private final Timer completeTimer;
+    private final String conditionHitsCounterName;
+    private final String conditionMissesCounterName;
+    private final String conditionTimerName;
+    private final String executionTimerName;
     private final String converterTimerName;
+    private final String completeTimerName;
 
     protected abstract Result[] run(String field);
-
-    protected final MetricRegistry metricRegistry;
 
     public Extractor(MetricRegistry metricRegistry,
                      String id,
@@ -134,7 +141,6 @@ public abstract class Extractor implements EmbeddedPersistable {
                      List<Converter> converters,
                      ConditionType conditionType,
                      String conditionValue) throws ReservedFieldException {
-        this.metricRegistry = metricRegistry;
         if (Message.RESERVED_FIELDS.contains(targetField) && !Message.RESERVED_SETTABLE_FIELDS.contains(targetField)) {
             throw new ReservedFieldException("You cannot apply an extractor on reserved field [" + targetField + "].");
         }
@@ -159,116 +165,126 @@ public abstract class Extractor implements EmbeddedPersistable {
             this.regexConditionPattern = Pattern.compile(conditionValue, Pattern.DOTALL);
         }
 
-        this.totalTimerName = name(getClass(), getType().toString().toLowerCase(Locale.ENGLISH), getId(), "executionTime");
-        this.converterTimerName = name(getClass(), getType().toString().toLowerCase(Locale.ENGLISH), getId(), "converterExecutionTime");
+        final String metricsPrefix = name(getClass(), getType().toString().toLowerCase(Locale.ENGLISH), getId());
+        this.conditionHitsCounterName = name(metricsPrefix, "conditionHits");
+        this.conditionMissesCounterName = name(metricsPrefix, "conditionMisses");
+        this.conditionTimerName = name(metricsPrefix, "conditionTime");
+        this.executionTimerName = name(metricsPrefix, "executionTime");
+        this.converterTimerName = name(metricsPrefix, "converterExecutionTime");
+        this.completeTimerName = name(metricsPrefix, "completeExecutionTime");
+        this.conditionHitsCounter = metricRegistry.counter(conditionHitsCounterName);
+        this.conditionMissesCounter = metricRegistry.counter(conditionMissesCounterName);
+        this.conditionTimer = metricRegistry.timer(conditionTimerName);
+        this.executionTimer = metricRegistry.timer(executionTimerName);
+        this.converterTimer = metricRegistry.timer(converterTimerName);
+        this.completeTimer = metricRegistry.timer(completeTimerName);
     }
 
     public void runExtractor(Message msg) {
-        // We can only work on Strings.
-        if (!(msg.getField(sourceField) instanceof String)) {
-            return;
-        }
-
-        final String field = (String) msg.getField(sourceField);
-
-        // Decide if to extract at all.
-        if (conditionType.equals(ConditionType.STRING)) {
-            if (!field.contains(conditionValue)) {
-                return;
-            }
-        } else if (conditionType.equals(ConditionType.REGEX)) {
-            if (!regexConditionPattern.matcher(field).find()) {
-                return;
-            }
-        }
-
-        final Timer.Context timerContext = metricRegistry.timer(getTotalTimerName()).time();
-
-        final Result[] results = run(field);
-
-        if (results == null || results.length == 0 || FluentIterable.of(results).anyMatch(VALUE_NULL_PREDICATE)) {
-            timerContext.close();
-            return;
-        } else if (results.length == 1 && results[0].target == null) { // results[0].target is null if this extractor cannot produce multiple fields use targetField in that case
-            msg.addField(targetField, results[0].getValue());
-        } else {
-            for (final Result result : results) {
-                msg.addField(result.getTarget(), result.getValue());
-            }
-        }
-
-        // Remove original from message?
-        if (cursorStrategy.equals(CursorStrategy.CUT) && !targetField.equals(sourceField) && !Message.RESERVED_FIELDS.contains(sourceField) && results[0].beginIndex != -1) {
-            final StringBuilder sb = new StringBuilder(field);
-
-            final ImmutableList<Result> reverseList = FluentIterable.from(Arrays.asList(results)).toSortedList(new Comparator<Result>() {
-                @Override
-                public int compare(Result left, Result right) {
-                    // reversed!
-                    return -1 * ComparisonChain.start().compare(left.endIndex, right.endIndex).result();
-                }
-            });
-            // remove all from reverse so that the indices still match
-            for (final Result result : reverseList) {
-                sb.delete(result.getBeginIndex(), result.getEndIndex());
-            }
-
-            String finalResult = sb.toString();
-
-            // also ignore pure whitespace
-            if (finalResult.trim().isEmpty()) {
-                finalResult = "fullyCutByExtractor";
-            }
-
-            msg.removeField(sourceField);
-            // TODO don't add an empty field back, or rather don't add fullyCutByExtractor
-            msg.addField(sourceField, finalResult);
-        }
-
-        runConverters(msg);
-
-        timerContext.stop();
-    }
-
-    public void runConverters(Message msg) {
-        final Timer.Context timerContext = metricRegistry.timer(getConverterTimerName()).time();
-
-        for (Converter converter : converters) {
-            try {
-                if (!(msg.getField(targetField) instanceof String)) {
-                    continue;
+        try(final Timer.Context ignored = completeTimer.time()) {
+            final String field;
+            try (final Timer.Context ignored2 = conditionTimer.time()) {
+                // We can only work on Strings.
+                if (!(msg.getField(sourceField) instanceof String)) {
+                    conditionMissesCounter.inc();
+                    return;
                 }
 
-                if (!converter.buildsMultipleFields()) {
-                    final Object converted = converter.convert((String) msg.getField(targetField));
+                field = (String) msg.getField(sourceField);
 
-                    // We have arrived here if no exception was thrown and can safely replace the original field.
-                    msg.removeField(targetField);
-                    msg.addField(targetField, converted);
+                // Decide if to extract at all.
+                if (conditionType.equals(ConditionType.STRING)) {
+                    if (field.contains(conditionValue)) {
+                        conditionHitsCounter.inc();
+                    } else {
+                        conditionMissesCounter.inc();
+                        return;
+                    }
+                } else if (conditionType.equals(ConditionType.REGEX)) {
+                    if (regexConditionPattern.matcher(field).find()) {
+                        conditionHitsCounter.inc();
+                    } else {
+                        conditionMissesCounter.inc();
+                        return;
+                    }
+                }
+            }
+
+            try (final Timer.Context ignored2 = executionTimer.time()) {
+                final Result[] results = run(field);
+                if (results == null || results.length == 0 || Arrays.stream(results).anyMatch(result -> result.getValue() == null)) {
+                    return;
+                } else if (results.length == 1 && results[0].target == null) {
+                    // results[0].target is null if this extractor cannot produce multiple fields use targetField in that case
+                    msg.addField(targetField, results[0].getValue());
                 } else {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> additionalFields = new HashMap<>((Map<String, Object>) converter.convert((String) msg.getField(targetField)));
-                    for (final String reservedField : Message.RESERVED_FIELDS) {
-                        if (additionalFields.containsKey(reservedField)) {
-                            if (LOG.isDebugEnabled()) {
-                                LOG.debug(
-                                        "Not setting reserved field {} from converter {} on message {}, rest of the message is being processed",
-                                        reservedField, converter.getType(), msg.getId());
-                            }
-                            converterExceptions.incrementAndGet();
-                            additionalFields.remove(reservedField);
-                        }
+                    for (final Result result : results) {
+                        msg.addField(result.getTarget(), result.getValue());
+                    }
+                }
+
+                // Remove original from message?
+                if (cursorStrategy.equals(CursorStrategy.CUT) && !targetField.equals(sourceField) && !Message.RESERVED_FIELDS.contains(sourceField) && results[0].beginIndex != -1) {
+                    final StringBuilder sb = new StringBuilder(field);
+
+                    final List<Result> reverseList = Arrays.stream(results)
+                            .sorted(Comparator.<Result>comparingInt(result -> result.endIndex).reversed())
+                            .collect(Collectors.toList());
+
+                    // remove all from reverse so that the indices still match
+                    for (final Result result : reverseList) {
+                        sb.delete(result.getBeginIndex(), result.getEndIndex());
                     }
 
-                    msg.addFields(additionalFields);
+                    final String builtString = sb.toString();
+                    final String finalResult = builtString.trim().isEmpty() ? "fullyCutByExtractor" : builtString;
+
+                    msg.removeField(sourceField);
+                    // TODO don't add an empty field back, or rather don't add fullyCutByExtractor
+                    msg.addField(sourceField, finalResult);
                 }
-            } catch (Exception e) {
-                this.converterExceptions.incrementAndGet();
-                LOG.error("Could not apply converter [" + converter.getType() + "] of extractor [" + getId() + "].", e);
+
+                runConverters(msg);
             }
         }
+    }
 
-        timerContext.stop();
+    private void runConverters(Message msg) {
+        try(final Timer.Context ignored = converterTimer.time()) {
+            for (Converter converter : converters) {
+                try {
+                    if (!(msg.getField(targetField) instanceof String)) {
+                        continue;
+                    }
+
+                    final Object convertedValue = converter.convert((String) msg.getField(targetField));
+                    if (!converter.buildsMultipleFields()) {
+                        // We have arrived here if no exception was thrown and can safely replace the original field.
+                        msg.removeField(targetField);
+                        msg.addField(targetField, convertedValue);
+                    } else if (convertedValue instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        final Map<String, Object> additionalFields = new HashMap<>((Map<String, Object>) convertedValue);
+                        for (final String reservedField : Message.RESERVED_FIELDS) {
+                            if (additionalFields.containsKey(reservedField)) {
+                                if (LOG.isDebugEnabled()) {
+                                    LOG.debug(
+                                            "Not setting reserved field {} from converter {} on message {}, rest of the message is being processed",
+                                            reservedField, converter.getType(), msg.getId());
+                                }
+                                converterExceptions.incrementAndGet();
+                                additionalFields.remove(reservedField);
+                            }
+                        }
+
+                        msg.addFields(additionalFields);
+                    }
+                } catch (Exception e) {
+                    this.converterExceptions.incrementAndGet();
+                    LOG.error("Could not apply converter [" + converter.getType() + "] of extractor [" + getId() + "].", e);
+                }
+            }
+        }
     }
 
     public static class ReservedFieldException extends Exception {
@@ -325,6 +341,7 @@ public abstract class Extractor implements EmbeddedPersistable {
         return conditionType;
     }
 
+    @Override
     public Map<String, Object> getPersistedFields() {
         return ImmutableMap.<String, Object>builder()
                 .put(FIELD_ID, id)
@@ -360,12 +377,28 @@ public abstract class Extractor implements EmbeddedPersistable {
         return listBuilder.build();
     }
 
-    public String getTotalTimerName() {
-        return totalTimerName;
+    public String getConditionHitsCounterName() {
+        return conditionHitsCounterName;
+    }
+
+    public String getConditionMissesCounterName() {
+        return conditionMissesCounterName;
+    }
+
+    public String getConditionTimerName() {
+        return conditionTimerName;
+    }
+
+    public String getExecutionTimerName() {
+        return executionTimerName;
     }
 
     public String getConverterTimerName() {
         return converterTimerName;
+    }
+
+    public String getCompleteTimerName() {
+        return completeTimerName;
     }
 
     public long getExceptionCount() {
@@ -438,13 +471,6 @@ public abstract class Extractor implements EmbeddedPersistable {
                     .add("beginIndex", beginIndex)
                     .add("endIndex", endIndex)
                     .toString();
-        }
-    }
-
-    private static class ResultPredicate implements Predicate<Result> {
-        @Override
-        public boolean apply(Result input) {
-            return input.getValue() == null;
         }
     }
 }

@@ -16,18 +16,23 @@
  */
 package org.graylog2.plugin;
 
-import com.google.common.collect.Sets;
 import com.google.common.eventbus.EventBus;
+import org.graylog2.audit.NullAuditEventSender;
 import org.graylog2.plugin.lifecycles.Lifecycle;
+import org.graylog2.shared.SuppressForbidden;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.rules.TemporaryFolder;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,14 +41,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
 public class ServerStatusTest {
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @Rule
+    public final MockitoRule mockitoRule = MockitoJUnit.rule();
+
     @Mock private BaseConfiguration config;
     @Mock private EventBus eventBus;
 
@@ -52,17 +60,16 @@ public class ServerStatusTest {
 
     @Before
     public void setUp() throws Exception {
-        tempFile = File.createTempFile("server-status-test", "node-id");
-        tempFile.deleteOnExit();
+        tempFile = temporaryFolder.newFile();
 
         when(config.getNodeIdFile()).thenReturn(tempFile.getPath());
 
-        status = new ServerStatus(config, Sets.newHashSet(ServerStatus.Capability.MASTER), eventBus);
+        status = new ServerStatus(config, Collections.singleton(ServerStatus.Capability.MASTER), eventBus, NullAuditEventSender::new);
     }
 
     @Test
     public void testGetNodeId() throws Exception {
-        assertEquals(status.getNodeId().toString(), new String(Files.readAllBytes(tempFile.toPath())));
+        assertEquals(status.getNodeId().toString(), new String(Files.readAllBytes(tempFile.toPath()), StandardCharsets.UTF_8));
     }
 
     @Test
@@ -131,8 +138,6 @@ public class ServerStatusTest {
         final CountDownLatch stopLatch = new CountDownLatch(1);
         final AtomicBoolean exceptionCaught = new AtomicBoolean(false);
 
-        doThrow(new RuntimeException()).when(runnable).run();
-
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -159,6 +164,7 @@ public class ServerStatusTest {
     }
 
     @Test
+    @SuppressForbidden("Deliberate invocation")
     public void testGetTimezone() throws Exception {
         assertEquals(status.getTimezone(), DateTimeZone.getDefault());
     }

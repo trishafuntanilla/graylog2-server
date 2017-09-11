@@ -18,7 +18,7 @@ const AlertsStore = Reflux.createStore({
     promise
       .then(
         response => this.trigger({ alerts: response }),
-        error => {
+        (error) => {
           UserNotification.error(`Fetching alerts for stream "${stream.title}" failed with status: ${error.message}`,
             `Could not retrieve alerts for stream "${stream.title}".`);
         });
@@ -32,11 +32,23 @@ const AlertsStore = Reflux.createStore({
     promise
       .then(
         response => this.trigger({ alerts: response }),
-        error => {
+        (error) => {
           UserNotification.error(`Fetching alerts failed with status: ${error.message}`, 'Could not retrieve alerts.');
         });
 
     AlertsActions.listPaginated.promise(promise);
+  },
+
+  listAllPaginated(skip, limit, state) {
+    const url = URLUtils.qualifyUrl(ApiRoutes.AlertsApiController.listAllPaginated(skip, limit, state).url);
+    const promise = fetch('GET', url);
+    promise.then(
+      response => this.trigger({ alerts: response }),
+      (error) => {
+        UserNotification.error(`Fetching alerts failed with status: ${error.message}`, 'Could not retrieve alerts.');
+      });
+
+    AlertsActions.listAllPaginated.promise(promise);
   },
 
   listAllStreams(since) {
@@ -45,11 +57,27 @@ const AlertsStore = Reflux.createStore({
     promise
       .then(
         response => this.trigger({ alerts: response }),
-        error => {
+        (error) => {
           UserNotification.error(`Fetching alerts failed with status: ${error.message}`, 'Could not retrieve alerts.');
         });
 
     AlertsActions.listAllStreams.promise(promise);
+  },
+
+  get(alertId) {
+    const url = URLUtils.qualifyUrl(ApiRoutes.AlertsApiController.get(alertId).url);
+    const promise = fetch('GET', url);
+    promise.then(
+      (response) => {
+        this.trigger({ alert: response });
+        return response;
+      },
+      (error) => {
+        UserNotification.error(`Fetching alert '${alertId}' failed with status: ${error.message}`, 'Could not retrieve alert.');
+      },
+    );
+
+    AlertsActions.get.promise(promise);
   },
 });
 

@@ -28,6 +28,7 @@ import org.graylog2.plugin.ServerStatus;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.cluster.ClusterConfigService;
 import org.graylog2.plugin.cluster.ClusterId;
+import org.graylog2.rest.models.system.responses.LocalesResponse;
 import org.graylog2.rest.models.system.responses.SystemJVMResponse;
 import org.graylog2.rest.models.system.responses.SystemOverviewResponse;
 import org.graylog2.rest.models.system.responses.SystemThreadDumpResponse;
@@ -40,6 +41,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.StreamingOutput;
 import java.io.ByteArrayOutputStream;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
@@ -112,6 +114,24 @@ public class SystemResource extends RestResource {
 
         threadDump.dump(output);
         return SystemThreadDumpResponse.create(new String(output.toByteArray(), StandardCharsets.UTF_8));
+    }
+
+    @GET
+    @Path("/threaddump")
+    @Produces(MediaType.TEXT_PLAIN)
+    @Timed
+    @ApiOperation(value = "Get a thread dump as plain text")
+    public StreamingOutput threadDumpAsText() {
+        checkPermission(RestPermissions.THREADS_DUMP, serverStatus.getNodeId().toString());
+        return output -> new ThreadDump(ManagementFactory.getThreadMXBean()).dump(output);
+    }
+
+    @GET
+    @ApiOperation(value = "Get supported locales")
+    @Path("/locales")
+    @Timed
+    public LocalesResponse locales() {
+        return LocalesResponse.create(Locale.getAvailableLocales());
     }
 
     private Map<String, Long> bytesToValueMap(long bytes) {

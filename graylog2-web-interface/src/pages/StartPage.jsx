@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
 
 import { Spinner } from 'components/common';
@@ -25,6 +26,7 @@ const StartPage = React.createClass({
   },
   componentDidMount() {
     GettingStartedActions.getStatus();
+    CurrentUserStore.reload();
   },
   componentDidUpdate() {
     if (!this._isLoading()) {
@@ -32,15 +34,15 @@ const StartPage = React.createClass({
     }
   },
   onGettingStartedUpdate(state) {
-    this.setState({gettingStarted: state.status});
+    this.setState({ gettingStarted: state.status });
   },
   _redirect(page) {
     this.props.history.pushState(null, page);
   },
   _redirectToStartpage() {
     // Show getting started page if user is an admin and getting started wasn't dismissed
-    if (PermissionsMixin.isPermitted(this.state.currentUser.permissions, ['INPUTS_CREATE'])) {
-      if (!!this.state.gettingStarted.show) {
+    if (PermissionsMixin.isPermitted(this.state.currentUser.permissions, ['inputs:create'])) {
+      if (this.state.gettingStarted.show) {
         this._redirect(Routes.GETTING_STARTED);
         return;
       }
@@ -58,7 +60,7 @@ const StartPage = React.createClass({
     }
 
     // Show search page if permitted, or streams page in other case
-    if (PermissionsMixin.isAnyPermitted(this.state.currentUser.permissions, ['SEARCHES_ABSOLUTE', 'SEARCHES_RELATIVE', 'SEARCHES_KEYWORD'])) {
+    if (PermissionsMixin.isAnyPermitted(this.state.currentUser.permissions, ['searches:absolute', 'searches:keyword', 'searches:relative'])) {
       this._redirect(Routes.SEARCH);
     } else {
       this._redirect(Routes.STREAMS);
@@ -68,7 +70,7 @@ const StartPage = React.createClass({
     return !this.state.currentUser || !this.state.gettingStarted;
   },
   render() {
-    return <Spinner/>;
+    return <Spinner />;
   },
 });
 

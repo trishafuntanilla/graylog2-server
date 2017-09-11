@@ -19,26 +19,26 @@ package org.graylog2.indexer.messages;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.github.joschi.jadconfig.util.Duration;
+import com.github.rholder.retry.Attempt;
 import com.github.rholder.retry.RetryException;
+import com.github.rholder.retry.RetryListener;
 import com.github.rholder.retry.Retryer;
 import com.github.rholder.retry.RetryerBuilder;
 import com.github.rholder.retry.WaitStrategies;
-import com.google.common.base.Throwables;
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse.AnalyzeToken;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
-import org.graylog2.configuration.ElasticsearchConfiguration;
-import org.graylog2.indexer.Deflector;
+import com.google.common.collect.ImmutableMap;
+import io.searchbox.client.JestClient;
+import io.searchbox.client.JestResult;
+import io.searchbox.core.Bulk;
+import io.searchbox.core.BulkResult;
+import io.searchbox.core.DocumentResult;
+import io.searchbox.core.Get;
+import io.searchbox.core.Index;
+import io.searchbox.indices.Analyze;
+import io.searchbox.params.Parameters;
+import org.graylog2.indexer.IndexFailure;
+import org.graylog2.indexer.IndexFailureImpl;
 import org.graylog2.indexer.IndexMapping;
+import org.graylog2.indexer.IndexSet;
 import org.graylog2.indexer.results.ResultMessage;
 import org.graylog2.plugin.Message;
 import org.slf4j.Logger;
@@ -46,136 +46,171 @@ import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.codahale.metrics.MetricRegistry.name;
-import static com.google.common.base.Preconditions.checkNotNull;
 
 @Singleton
 public class Messages {
     private static final Logger LOG = LoggerFactory.getLogger(Messages.class);
     private static final Duration MAX_WAIT_TIME = Duration.seconds(30L);
-    private static final Retryer<BulkResponse> BULK_REQUEST_RETRYER = RetryerBuilder.<BulkResponse>newBuilder()
-            .retryIfException(t -> t instanceof ElasticsearchTimeoutException)
+    private static final Retryer<BulkResult> BULK_REQUEST_RETRYER = RetryerBuilder.<BulkResult>newBuilder()
+            .retryIfException(t -> t instanceof IOException)
             .withWaitStrategy(WaitStrategies.exponentialWait(MAX_WAIT_TIME.getQuantity(), MAX_WAIT_TIME.getUnit()))
+            .withRetryListener(new RetryListener() {
+                @Override
+                public <V> void onRetry(Attempt<V> attempt) {
+                    if (attempt.hasException()) {
+                        LOG.error("Caught exception during bulk indexing: {}, retrying (attempt #{}).", attempt.getExceptionCause(), attempt.getAttemptNumber());
+                    } else if (attempt.getAttemptNumber() > 1) {
+                        LOG.info("Bulk indexing finally successful (attempt #{}).", attempt.getAttemptNumber());
+                    }
+                }
+            })
             .build();
 
-    private final Client c;
-    private final String deflectorName;
-    private final String analyzer;
     private final Meter invalidTimestampMeter;
+    private final JestClient client;
+    private final LinkedBlockingQueue<List<IndexFailure>> indexFailureQueue;
 
     @Inject
-    public Messages(Client client, ElasticsearchConfiguration configuration, MetricRegistry metricRegistry) {
-        this.c = client;
-        this.deflectorName = Deflector.buildName(configuration.getIndexPrefix());
-        this.analyzer = configuration.getAnalyzer();
+    public Messages(MetricRegistry metricRegistry,
+                    JestClient client) {
         invalidTimestampMeter = metricRegistry.meter(name(Messages.class, "invalid-timestamps"));
+        this.client = client;
+
+        // TODO: Magic number
+        this.indexFailureQueue =  new LinkedBlockingQueue<>(1000);
     }
 
-    public ResultMessage get(String messageId, String index) throws DocumentNotFoundException {
-        final GetRequest request = c.prepareGet(index, IndexMapping.TYPE_MESSAGE, messageId).request();
-        final GetResponse r = c.get(request).actionGet();
+    public ResultMessage get(String messageId, String index) throws DocumentNotFoundException, IOException {
+        final Get get = new Get.Builder(index, messageId).type(IndexMapping.TYPE_MESSAGE).build();
+        final DocumentResult result = client.execute(get);
 
-        if (!r.isExists()) {
+        if (!result.isSucceeded()) {
             throw new DocumentNotFoundException(index, messageId);
         }
 
-        return ResultMessage.parseFromSource(r);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> message = (Map<String, Object>) result.getSourceAsObject(Map.class, false);
+
+        return ResultMessage.parseFromSource(result.getId(), result.getIndex(), message);
     }
 
-    public List<String> analyze(String string, String index) {
-        final AnalyzeResponse response = c.admin().indices().prepareAnalyze(index, string)
-            .setAnalyzer(analyzer)
-            .get();
+    public List<String> analyze(String toAnalyze, String index, String analyzer) throws IOException {
+        final Analyze analyze = new Analyze.Builder().index(index).analyzer(analyzer).text(toAnalyze).build();
+        final JestResult result = client.execute(analyze);
 
-        final List<AnalyzeToken> tokens = response.getTokens();
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> tokens = (List<Map<String, Object>>) result.getValue("tokens");
         final List<String> terms = new ArrayList<>(tokens.size());
-        for (AnalyzeToken token : tokens) {
-            terms.add(token.getTerm());
-        }
+        tokens.forEach(token -> terms.add((String)token.get("token")));
 
         return terms;
     }
 
-    public boolean bulkIndex(final List<Message> messages) {
-        return bulkIndex(deflectorName, messages);
+    public List<String> bulkIndex(final List<Map.Entry<IndexSet, Message>> messageList) {
+        if (messageList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        final Bulk.Builder bulk = new Bulk.Builder();
+        for (Map.Entry<IndexSet, Message> entry : messageList) {
+            final String id = entry.getValue().getId();
+            bulk.addAction(new Index.Builder(entry.getValue().toElasticSearchObject(invalidTimestampMeter))
+                .index(entry.getKey().getWriteIndexAlias())
+                .type(IndexMapping.TYPE_MESSAGE)
+                .id(id)
+                .build());
+        }
+
+        final BulkResult result = runBulkRequest(bulk.build(), messageList.size());
+        final List<BulkResult.BulkResultItem> failedItems = result.getFailedItems();
+
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Index: Bulk indexed {} messages, took {} ms, failures: {}",
+                    result.getItems().size(), result, failedItems.size());
+        }
+
+        if (!failedItems.isEmpty()) {
+            return propagateFailure(failedItems, messageList, result.getErrorMessage());
+        } else {
+            return Collections.emptyList();
+        }
     }
 
-    public boolean bulkIndex(final String indexName, final List<Message> messages) {
-        if (messages.isEmpty()) {
-            return true;
-        }
-
-        final BulkRequestBuilder requestBuilder = c.prepareBulk().setConsistencyLevel(WriteConsistencyLevel.ONE);
-        for (Message msg : messages) {
-            requestBuilder.add(buildIndexRequest(indexName, msg.toElasticSearchObject(invalidTimestampMeter), msg.getId()));
-        }
-
-        final BulkResponse response = runBulkRequest(requestBuilder.request());
-
-        LOG.debug("Index {}: Bulk indexed {} messages, took {} ms, failures: {}", indexName,
-                response.getItems().length, response.getTookInMillis(), response.hasFailures());
-        if (response.hasFailures()) {
-            propagateFailure(response.getItems(), response.buildFailureMessage());
-        }
-
-        return !response.hasFailures();
-    }
-
-    private BulkResponse runBulkRequest(final BulkRequest request) {
+    private BulkResult runBulkRequest(final Bulk request, int count) {
         try {
-            return c.bulk(request).actionGet();
-        } catch (ElasticsearchTimeoutException timeoutException) {
-            LOG.debug("Bulk indexing request timed out. Retrying.", timeoutException);
-            try {
-                return BULK_REQUEST_RETRYER.call(new BulkRequestCallable(c, request));
-            } catch (ExecutionException | RetryException e) {
-                LOG.error("Couldn't bulk index " + request.numberOfActions() + " messages.", e);
-                throw Throwables.propagate(e);
+            return BULK_REQUEST_RETRYER.call(() -> client.execute(request));
+        } catch (ExecutionException | RetryException e) {
+            if (e instanceof RetryException) {
+                LOG.error("Could not bulk index {} messages. Giving up after {} attempts.", count, ((RetryException) e).getNumberOfFailedAttempts());
+            } else {
+                LOG.error("Couldn't bulk index " + count + " messages.", e);
             }
+            throw new RuntimeException(e);
         }
     }
 
-    private void propagateFailure(BulkItemResponse[] items, String errorMessage) {
-        // Get all failed messages.
-        long failedMessages = 0L;
-        for (BulkItemResponse item : items) {
-            if (item.isFailed()) {
-                LOG.trace("Failed to index message: {}", item.getFailureMessage());
-                failedMessages++;
-            }
+    private List<String> propagateFailure(List<BulkResult.BulkResultItem> items, List<Map.Entry<IndexSet, Message>> messageList, String errorMessage) {
+        final Map<String, Message> messageMap = messageList.stream()
+            .map(Map.Entry::getValue)
+            .distinct()
+            .collect(Collectors.toMap(Message::getId, Function.identity()));
+        final List<String> failedMessageIds = new ArrayList<>(items.size());
+        final List<IndexFailure> indexFailures = new ArrayList<>(items.size());
+        for (BulkResult.BulkResultItem item : items) {
+            LOG.trace("Failed to index message: {}", item.error);
+
+            // Write failure to index_failures.
+            final Message messageEntry = messageMap.get(item.id);
+            final Map<String, Object> doc = ImmutableMap.<String, Object>builder()
+                    .put("letter_id", item.id)
+                    .put("index", item.index)
+                    .put("type", item.type)
+                    .put("message", item.error)
+                    .put("timestamp", messageEntry.getTimestamp())
+                    .build();
+
+            indexFailures.add(new IndexFailureImpl(doc));
+
+            failedMessageIds.add(item.id);
         }
 
         LOG.error("Failed to index [{}] messages. Please check the index error log in your web interface for the reason. Error: {}",
-                failedMessages, errorMessage);
+                indexFailures.size(), errorMessage);
+
+        try {
+            // TODO: Magic number
+            indexFailureQueue.offer(indexFailures, 25, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            LOG.warn("Couldn't save index failures.", e);
+        }
+
+        return failedMessageIds;
     }
 
-    public IndexRequest buildIndexRequest(String index, Map<String, Object> source, String id) {
+    public Index prepareIndexRequest(String index, Map<String, Object> source, String id) {
         source.remove(Message.FIELD_ID);
 
-        return c.prepareIndex(index, IndexMapping.TYPE_MESSAGE, id)
-                .setSource(source)
-                .setConsistencyLevel(WriteConsistencyLevel.ONE)
-                .request();
+        return new Index.Builder(source)
+                .index(index)
+                .type(IndexMapping.TYPE_MESSAGE)
+                .id(id)
+                .setParameter(Parameters.CONSISTENCY, "one")
+                .build();
     }
 
-    private static class BulkRequestCallable implements Callable<BulkResponse> {
-        private final Client client;
-        private final BulkRequest request;
-
-        public BulkRequestCallable(Client client, BulkRequest request) {
-            this.client = checkNotNull(client);
-            this.request = checkNotNull(request);
-        }
-
-        @Override
-        public BulkResponse call() throws Exception {
-            return client.bulk(request).actionGet();
-        }
+    public LinkedBlockingQueue<List<IndexFailure>> getIndexFailureQueue() {
+        return indexFailureQueue;
     }
 }

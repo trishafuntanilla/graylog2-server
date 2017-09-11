@@ -1,8 +1,8 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
 
-import PageHeader from 'components/common/PageHeader';
-import Spinner from 'components/common/Spinner';
+import { DocumentTitle, PageHeader, Spinner } from 'components/common';
 import ImportExtractors from 'components/extractors/ImportExtractors';
 
 import ActionsProvider from 'injection/ActionsProvider';
@@ -22,27 +22,29 @@ const ImportExtractorsPage = React.createClass({
     };
   },
   componentDidMount() {
-    InputsActions.get.triggerPromise(this.props.params.inputId).then(input => this.setState({input: input}));
+    InputsActions.get.triggerPromise(this.props.params.inputId).then(input => this.setState({ input: input }));
   },
   _isLoading() {
     return !this.state.input;
   },
   render() {
     if (this._isLoading()) {
-      return <Spinner/>;
+      return <Spinner />;
     }
 
     return (
-      <div>
-        <PageHeader title={<span>Import extractors to <em>{this.state.input.title}</em></span>}>
-          <span>
-            Exported extractors can be imported to an input. All you need is the JSON export of extractors from any
-            other Graylog setup or from <a href="https://marketplace.graylog.org/" target="_blank">the Graylog
-            Marketplace</a>.
-          </span>
-        </PageHeader>
-        <ImportExtractors input={this.state.input}/>
-      </div>
+      <DocumentTitle title={`Import extractors to ${this.state.input.title}`}>
+        <div>
+          <PageHeader title={<span>Import extractors to <em>{this.state.input.title}</em></span>}>
+            <span>
+              Exported extractors can be imported to an input. All you need is the JSON export of extractors from any
+              other Graylog setup or from <a href="https://marketplace.graylog.org/" target="_blank">the Graylog
+              Marketplace</a>.
+            </span>
+          </PageHeader>
+          <ImportExtractors input={this.state.input} />
+        </div>
+      </DocumentTitle>
     );
   },
 });

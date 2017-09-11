@@ -1,14 +1,16 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import numeral from 'numeral';
+import TimeHelper from 'util/TimeHelper';
 
 const CounterRate = React.createClass({
   propTypes: {
-    metric: React.PropTypes.object,
-    showTotal: React.PropTypes.bool,
-    prefix: React.PropTypes.string,
-    suffix: React.PropTypes.string,
-    hideOnZero: React.PropTypes.bool,
-    hideOnMissing: React.PropTypes.bool,
+    metric: PropTypes.object,
+    showTotal: PropTypes.bool,
+    prefix: PropTypes.string,
+    suffix: PropTypes.string,
+    hideOnZero: PropTypes.bool,
+    hideOnMissing: PropTypes.bool,
   },
   getDefaultProps() {
     return {
@@ -24,19 +26,15 @@ const CounterRate = React.createClass({
     return {
       prevMetric: null,
       prevTs: null,
-      nowTs: this._nowInSeconds(),
+      nowTs: TimeHelper.nowInSeconds(),
     };
   },
   componentWillReceiveProps() {
     this.setState({
       prevMetric: this.props.metric,
       prevTs: this.state.nowTs,
-      nowTs: this._nowInSeconds(),
+      nowTs: TimeHelper.nowInSeconds(),
     });
-  },
-
-  _nowInSeconds() {
-    return Math.floor(Date.now() / 1000);
   },
 
   _checkPrevMetric() {
@@ -90,7 +88,7 @@ const CounterRate = React.createClass({
     return (<span>
       {rate}
       {this.props.showTotal && <span key="absolute" className="number-format"> ({numeral(count).format('0')} total)</span>}
-      </span>);
+    </span>);
   },
 });
 

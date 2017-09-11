@@ -17,10 +17,9 @@
 package org.graylog2.plugin.streams;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import org.graylog2.plugin.alarms.AlertCondition;
+import org.graylog2.indexer.IndexSet;
 import org.graylog2.plugin.database.Persisted;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +27,8 @@ import java.util.Set;
 import static com.google.common.base.Strings.emptyToNull;
 
 public interface Stream extends Persisted {
+    String DEFAULT_STREAM_ID = "000000000000000000000001";
+
     enum MatchingType {
         AND,
         OR;
@@ -39,8 +40,6 @@ public interface Stream extends Persisted {
             return (emptyToNull(name) == null ? DEFAULT : valueOf(name));
         }
     }
-
-    String getId();
 
     String getTitle();
 
@@ -66,11 +65,23 @@ public interface Stream extends Persisted {
 
     Map<String, Object> asMap(List<StreamRule> streamRules);
 
-    String toString();
-
     List<StreamRule> getStreamRules();
 
     Set<Output> getOutputs();
 
     MatchingType getMatchingType();
+
+    boolean isDefaultStream();
+
+    void setDefaultStream(boolean defaultStream);
+
+    boolean getRemoveMatchesFromDefaultStream();
+
+    void setRemoveMatchesFromDefaultStream(boolean removeMatchesFromDefaultStream);
+
+    IndexSet getIndexSet();
+
+    String getIndexSetId();
+
+    void setIndexSetId(String indexSetId);
 }

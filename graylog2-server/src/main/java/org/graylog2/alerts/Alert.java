@@ -16,18 +16,31 @@
  */
 package org.graylog2.alerts;
 
-import org.graylog2.plugin.database.Persisted;
 import org.joda.time.DateTime;
 
 import java.util.Map;
 
-/**
- * @author Dennis Oelkers <dennis@torch.sh>
- */
-public interface Alert extends Persisted {
+public interface Alert {
+    String getId();
     String getStreamId();
     String getConditionId();
     DateTime getTriggeredAt();
+    DateTime getResolvedAt();
     String getDescription();
     Map<String, Object> getConditionParameters();
+    boolean isInterval();
+
+    enum AlertState {
+        ANY, RESOLVED, UNRESOLVED;
+
+        public static AlertState fromString(String state) {
+            for (AlertState aState : AlertState.values()) {
+                if (aState.toString().equalsIgnoreCase(state)) {
+                    return aState;
+                }
+            }
+
+            throw new IllegalArgumentException("Alert state " + state + " is not supported");
+        }
+    }
 }

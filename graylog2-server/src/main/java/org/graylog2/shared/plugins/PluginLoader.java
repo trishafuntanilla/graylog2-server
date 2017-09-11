@@ -24,6 +24,7 @@ import com.google.common.collect.Iterables;
 import org.graylog2.plugin.Plugin;
 import org.graylog2.plugin.PluginMetaData;
 import org.graylog2.plugin.PluginModule;
+import org.graylog2.shared.SuppressForbidden;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +32,7 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -66,6 +68,7 @@ public class PluginLoader {
         return ServiceLoader.load(Plugin.class);
     }
 
+    @SuppressForbidden("Deliberate invocation of URL#getFile()")
     private Iterable<Plugin> loadJarPlugins() {
         if (!pluginDir.exists()) {
             LOG.warn("Plugin directory {} does not exist, not loading plugins.", pluginDir.getAbsolutePath());
@@ -99,9 +102,27 @@ public class PluginLoader {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
-        // Create one URL class loader for all plugins so they can see each other.
-        // This makes plugin inter-dependencies work.
-        classLoader.addClassLoader(URLClassLoader.newInstance(urls.toArray(new URL[urls.size()])));
+        final List<URL> sharedClassLoaderUrls = new ArrayList<>();
+        urls.forEach(url -> {
+            final PluginProperties properties = PluginProperties.fromJarFile(url.getFile());
+
+            // Decide whether to create a separate, isolated class loader for the plugin. When the plugin is isolated
+            // (the default), it gets its own class loader and cannot see other plugins. Plugins which are not
+            // isolated share one class loader so they can see each other. (makes plugin inter-dependencies work)
+            if (properties.isIsolated()) {
+                LOG.debug("Creating isolated class loader for <{}>", url);
+                classLoader.addClassLoader(URLClassLoader.newInstance(new URL[]{url}));
+            } else {
+                LOG.debug("Using shared class loader for <{}>", url);
+                sharedClassLoaderUrls.add(url);
+            }
+        });
+
+        // Only create the shared class loader if any plugin requests to be shared.
+        if (!sharedClassLoaderUrls.isEmpty()) {
+            LOG.debug("Creating shared class loader for {} plugins: {}", sharedClassLoaderUrls.size(), sharedClassLoaderUrls);
+            classLoader.addClassLoader(URLClassLoader.newInstance(sharedClassLoaderUrls.toArray(new URL[sharedClassLoaderUrls.size()])));
+        }
 
         final ServiceLoader<Plugin> pluginServiceLoader = ServiceLoader.load(Plugin.class, classLoader);
 

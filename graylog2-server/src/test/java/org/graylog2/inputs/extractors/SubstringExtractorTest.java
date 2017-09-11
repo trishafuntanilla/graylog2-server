@@ -16,25 +16,19 @@
  */
 package org.graylog2.inputs.extractors;
 
-import com.google.common.collect.Lists;
 import org.graylog2.ConfigurationException;
 import org.graylog2.plugin.Message;
 import org.graylog2.plugin.Tools;
-import org.graylog2.plugin.inputs.Converter;
 import org.graylog2.plugin.inputs.Extractor;
 import org.junit.Test;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-/**
- * @author Lennart Koopmann <lennart@torch.sh>
- */
 public class SubstringExtractorTest extends AbstractExtractorTest {
     @Test
     public void testBasicExtraction() throws Exception {
@@ -104,7 +98,7 @@ public class SubstringExtractorTest extends AbstractExtractorTest {
     public void testDoesNotFailOnNonExistentSourceField() throws Exception {
         Message msg = new Message("The short message", "TestUnit", Tools.nowUTC());
 
-        SubstringExtractor x = new SubstringExtractor(metricRegistry, "foo", "foo", 0, Extractor.CursorStrategy.CUT, "LOLIDONTEXIST", "our_result", config(0,1), "foo", noConverters(), Extractor.ConditionType.NONE, null);
+        SubstringExtractor x = new SubstringExtractor(metricRegistry, "foo", "foo", 0, Extractor.CursorStrategy.CUT, "LOLIDONTEXIST", "our_result", config(0, 1), "foo", noConverters(), Extractor.ConditionType.NONE, null);
         x.runExtractor(msg);
     }
 
@@ -114,7 +108,7 @@ public class SubstringExtractorTest extends AbstractExtractorTest {
 
         msg.addField("somefield", 9001);
 
-        SubstringExtractor x = new SubstringExtractor(metricRegistry, "foo", "foo", 0, Extractor.CursorStrategy.CUT, "somefield", "our_result", config(0,1), "foo", noConverters(), Extractor.ConditionType.NONE, null);
+        SubstringExtractor x = new SubstringExtractor(metricRegistry, "foo", "foo", 0, Extractor.CursorStrategy.CUT, "somefield", "our_result", config(0, 1), "foo", noConverters(), Extractor.ConditionType.NONE, null);
         x.runExtractor(msg);
     }
 
@@ -124,7 +118,7 @@ public class SubstringExtractorTest extends AbstractExtractorTest {
 
         msg.addField("somefield", "<10> 07 Aug 2013 somesubsystem: this is my message for username9001 id:9001");
 
-        SubstringExtractor x = new SubstringExtractor(metricRegistry, "foo", "foo", 0, Extractor.CursorStrategy.CUT, "somefield", "our_result", config(0,75), "foo", noConverters(), Extractor.ConditionType.NONE, null);
+        SubstringExtractor x = new SubstringExtractor(metricRegistry, "foo", "foo", 0, Extractor.CursorStrategy.CUT, "somefield", "our_result", config(0, 75), "foo", noConverters(), Extractor.ConditionType.NONE, null);
         x.runExtractor(msg);
 
         assertNotNull(msg.getField("our_result"));
@@ -157,7 +151,7 @@ public class SubstringExtractorTest extends AbstractExtractorTest {
     }
 
     @Test
-         public void testDoesNotRunWhenRegexConditionFails() throws Exception {
+    public void testDoesNotRunWhenRegexConditionFails() throws Exception {
         Message msg = new Message("The short message", "TestUnit", Tools.nowUTC());
 
         msg.addField("somefield", "<10> 07 Aug 2013 somesubsystem: this is my message for username9001 id:9001");
@@ -194,14 +188,9 @@ public class SubstringExtractorTest extends AbstractExtractorTest {
     }
 
     public static Map<String, Object> config(final Object start, final Object end) {
-        return new HashMap<String, Object>() {{
-            put("begin_index", start);
-            put("end_index", end);
-        }};
+        final HashMap<String, Object> map = new HashMap<>();
+        map.put("begin_index", start);
+        map.put("end_index", end);
+        return map;
     }
-
-    public static List<Converter> noConverters() {
-        return Lists.newArrayList();
-    }
-
 }

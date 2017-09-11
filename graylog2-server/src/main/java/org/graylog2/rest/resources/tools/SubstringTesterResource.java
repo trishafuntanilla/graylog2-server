@@ -18,10 +18,11 @@ package org.graylog2.rest.resources.tools;
 
 import com.codahale.metrics.annotation.Timed;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.plugin.Tools;
-import org.graylog2.shared.rest.resources.RestResource;
-import org.graylog2.rest.models.tools.responses.SubstringTesterResponse;
 import org.graylog2.rest.models.tools.requests.SubstringTestRequest;
+import org.graylog2.rest.models.tools.responses.SubstringTesterResponse;
+import org.graylog2.shared.rest.resources.RestResource;
 
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
@@ -50,6 +51,7 @@ public class SubstringTesterResource extends RestResource {
     @Timed
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @NoAuditEvent("only used for testing substring extractor")
     public SubstringTesterResponse testSubstring(@Valid @NotNull SubstringTestRequest substringTestRequest) {
         return doSubstringTest(substringTestRequest.string(), substringTestRequest.start(), substringTestRequest.end());
     }
@@ -57,6 +59,6 @@ public class SubstringTesterResource extends RestResource {
     private SubstringTesterResponse doSubstringTest(String string, int beginIndex, int endIndex) {
         final String cut = Tools.safeSubstring(string, beginIndex, endIndex);
 
-        return SubstringTesterResponse.create((cut != null), cut, beginIndex, endIndex);
+        return SubstringTesterResponse.create(cut != null, cut, beginIndex, endIndex);
     }
 }

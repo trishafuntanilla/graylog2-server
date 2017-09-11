@@ -19,8 +19,12 @@ package org.graylog2.plugin;
 import com.google.common.collect.Sets;
 import com.google.common.eventbus.EventBus;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.google.inject.Provider;
+import org.graylog2.audit.AuditActor;
+import org.graylog2.audit.AuditEventSender;
 import org.graylog2.plugin.lifecycles.Lifecycle;
 import org.graylog2.plugin.system.NodeId;
+import org.graylog2.shared.SuppressForbidden;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
@@ -32,6 +36,8 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.graylog2.audit.AuditEventTypes.MESSAGE_PROCESSING_LOCK;
 
 @Singleton
 public class ServerStatus {
@@ -49,6 +55,7 @@ public class ServerStatus {
 
     private final EventBus eventBus;
     private final NodeId nodeId;
+    private final Provider<AuditEventSender> auditEventSenderProvider;
     private final String clusterId;
     private final DateTime startedAt;
     private final Set<Capability> capabilitySet;
@@ -61,9 +68,10 @@ public class ServerStatus {
     private volatile Lifecycle lifecycle = Lifecycle.UNINITIALIZED;
 
     @Inject
-    public ServerStatus(BaseConfiguration configuration, Set<Capability> capabilities, EventBus eventBus) {
+    public ServerStatus(BaseConfiguration configuration, Set<Capability> capabilities, EventBus eventBus, Provider<AuditEventSender> auditEventSenderProvider) {
         this.eventBus = eventBus;
         this.nodeId = new NodeId(configuration.getNodeIdFile());
+        this.auditEventSenderProvider = auditEventSenderProvider;
         this.clusterId = "";
         this.startedAt = Tools.nowUTC();
         this.capabilitySet = Sets.newHashSet(capabilities); // copy, because we support adding more capabilities later
@@ -121,12 +129,24 @@ public class ServerStatus {
         publishLifecycle(Lifecycle.FAILED);
     }
 
+    public void throttle() {
+        publishLifecycle(Lifecycle.THROTTLED);
+    }
+
+    public void running() {
+        publishLifecycle(Lifecycle.RUNNING);
+    }
+
     public void overrideLoadBalancerDead() {
         publishLifecycle(Lifecycle.OVERRIDE_LB_DEAD);
     }
 
     public void overrideLoadBalancerAlive() {
         publishLifecycle(Lifecycle.OVERRIDE_LB_ALIVE);
+    }
+
+    public void overrideLoadBalancerThrottled() {
+        publishLifecycle(Lifecycle.OVERRIDE_LB_THROTTLED);
     }
 
     public void awaitRunning(final Runnable runnable) {
@@ -146,6 +166,7 @@ public class ServerStatus {
         return startedAt;
     }
 
+    @SuppressForbidden("Deliberate invocation")
     public DateTimeZone getTimezone() {
         return DateTimeZone.getDefault();
     }
@@ -178,7 +199,11 @@ public class ServerStatus {
 
     public void pauseMessageProcessing(boolean locked) {
         // Never override pause lock if already locked.
-        processingPauseLocked.compareAndSet(false, locked);
+        if (processingPauseLocked.compareAndSet(false, locked) && locked) {
+            auditEventSenderProvider.get().success(AuditActor.system(nodeId), MESSAGE_PROCESSING_LOCK);
+        } else if (locked) {
+            auditEventSenderProvider.get().failure(AuditActor.system(nodeId), MESSAGE_PROCESSING_LOCK);
+        }
         isProcessing.set(false);
 
         publishLifecycle(Lifecycle.PAUSED);

@@ -24,7 +24,10 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.database.NotFoundException;
+import org.graylog2.events.ClusterEventBus;
 import org.graylog2.outputs.OutputRegistry;
 import org.graylog2.plugin.database.ValidationException;
 import org.graylog2.plugin.streams.Output;
@@ -36,9 +39,8 @@ import org.graylog2.shared.rest.resources.RestResource;
 import org.graylog2.shared.security.RestPermissions;
 import org.graylog2.streams.OutputService;
 import org.graylog2.streams.StreamService;
+import org.graylog2.streams.events.StreamsChangedEvent;
 import org.joda.time.DateTime;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
 import javax.validation.Valid;
@@ -60,17 +62,20 @@ import java.util.Set;
 @Api(value = "StreamOutputs", description = "Manage stream outputs for a given stream")
 @Path("/streams/{streamid}/outputs")
 public class StreamOutputResource extends RestResource {
-    private static final Logger LOG = LoggerFactory.getLogger(StreamOutputResource.class);
-
     private final OutputService outputService;
     private final StreamService streamService;
     private final OutputRegistry outputRegistry;
+    private final ClusterEventBus clusterEventBus;
 
     @Inject
-    public StreamOutputResource(OutputService outputService, StreamService streamService, OutputRegistry outputRegistry) {
+    public StreamOutputResource(OutputService outputService,
+                                StreamService streamService,
+                                OutputRegistry outputRegistry,
+                                ClusterEventBus clusterEventBus) {
         this.outputService = outputService;
         this.streamService = streamService;
         this.outputRegistry = outputRegistry;
+        this.clusterEventBus = clusterEventBus;
     }
 
     @GET
@@ -82,7 +87,7 @@ public class StreamOutputResource extends RestResource {
             @ApiResponse(code = 404, message = "No such stream on this node.")
     })
     public OutputListResponse get(@ApiParam(name = "streamid", value = "The id of the stream whose outputs we want.", required = true)
-                                   @PathParam("streamid") String streamid) throws org.graylog2.database.NotFoundException {
+                                   @PathParam("streamid") String streamid) throws NotFoundException {
         checkPermission(RestPermissions.STREAMS_READ, streamid);
         checkPermission(RestPermissions.STREAM_OUTPUTS_READ);
 
@@ -133,6 +138,7 @@ public class StreamOutputResource extends RestResource {
     @ApiResponses(value = {
             @ApiResponse(code = 400, message = "Invalid output specification in input.")
     })
+    @AuditEvent(type = AuditEventTypes.STREAM_OUTPUT_ASSIGNMENT_CREATE)
     public Response add(@ApiParam(name = "streamid", value = "The id of the stream whose outputs we want.", required = true)
                         @PathParam("streamid") String streamid,
                         @ApiParam(name = "JSON body", required = true)
@@ -141,6 +147,7 @@ public class StreamOutputResource extends RestResource {
         for (String outputId : aor.outputs()) {
             final Output output = outputService.load(outputId);
             streamService.addOutput(stream, output);
+            clusterEventBus.post(StreamsChangedEvent.create(stream.getId()));
         }
 
         return Response.accepted().build();
@@ -155,14 +162,16 @@ public class StreamOutputResource extends RestResource {
     @ApiResponses(value = {
             @ApiResponse(code = 404, message = "No such stream/output on this node.")
     })
+    @AuditEvent(type = AuditEventTypes.STREAM_OUTPUT_ASSIGNMENT_DELETE)
     public void remove(@ApiParam(name = "streamid", value = "The id of the stream whose outputs we want.", required = true)
                        @PathParam("streamid") String streamid,
                        @ApiParam(name = "outputId", value = "The id of the output that should be deleted", required = true)
-                       @PathParam("outputId") String outputId) throws org.graylog2.database.NotFoundException {
+                       @PathParam("outputId") String outputId) throws NotFoundException {
         final Stream stream = streamService.load(streamid);
         final Output output = outputService.load(outputId);
 
         streamService.removeOutput(stream, output);
         outputRegistry.removeOutput(output);
+        clusterEventBus.post(StreamsChangedEvent.create(stream.getId()));
     }
 }

@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react';
-import { Input } from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Input } from 'components/bootstrap';
 
 import { QueryConfiguration } from 'components/widgets/configurations';
 
@@ -17,7 +18,7 @@ const CountWidgetEditConfiguration = React.createClass({
   render() {
     return (
       <fieldset>
-        {this.props.showQueryConfig && <QueryConfiguration {...this.props}/>}
+        {this.props.showQueryConfig && <QueryConfiguration {...this.props} />}
         <Input key="trend"
                type="checkbox"
                id="count-trend"
@@ -25,7 +26,7 @@ const CountWidgetEditConfiguration = React.createClass({
                label="Display trend"
                defaultChecked={this.props.config.trend}
                onChange={this.props.onChange}
-               help="Show trend information for this number."/>
+               help="Show trend information for this number." />
 
         <Input key="lowerIsBetter"
                type="checkbox"
@@ -35,7 +36,7 @@ const CountWidgetEditConfiguration = React.createClass({
                disabled={this.props.config.trend === false}
                defaultChecked={this.props.config.lower_is_better}
                onChange={this.props.onChange}
-               help="Use green colour when trend goes down."/>
+               help="Use green colour when trend goes down." />
       </fieldset>
     );
   },

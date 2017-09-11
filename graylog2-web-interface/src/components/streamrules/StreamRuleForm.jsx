@@ -1,7 +1,9 @@
+import PropTypes from 'prop-types';
 import React from 'react';
-import { Col, Input } from 'react-bootstrap';
+import { Col } from 'react-bootstrap';
 import LinkedStateMixin from 'react-addons-linked-state-mixin';
 
+import { Input } from 'components/bootstrap';
 import BootstrapModalForm from 'components/bootstrap/BootstrapModalForm';
 import { TypeAheadFieldInput } from 'components/common';
 import { DocumentationLink } from 'components/support';
@@ -12,10 +14,10 @@ import HumanReadableStreamRule from 'components/streamrules//HumanReadableStream
 
 const StreamRuleForm = React.createClass({
   propTypes: {
-    onSubmit: React.PropTypes.func.isRequired,
-    streamRule: React.PropTypes.object,
-    streamRuleTypes: React.PropTypes.array.isRequired,
-    title: React.PropTypes.string.isRequired,
+    onSubmit: PropTypes.func.isRequired,
+    streamRule: PropTypes.object,
+    streamRuleTypes: PropTypes.array.isRequired,
+    title: PropTypes.string.isRequired,
   },
   mixins: [LinkedStateMixin],
   getDefaultProps() {
@@ -27,11 +29,15 @@ const StreamRuleForm = React.createClass({
     return this.props.streamRule;
   },
   FIELD_PRESENCE_RULE_TYPE: 5,
+  ALWAYS_MATCH_RULE_TYPE: 7,
   _resetValues() {
     this.setState(this.props.streamRule);
   },
   _onSubmit() {
-    if (this.state.type === this.FIELD_PRESENCE_RULE_TYPE) {
+    if (this.state.type === this.ALWAYS_MATCH_RULE_TYPE) {
+      this.state.field = '';
+    }
+    if (this.state.type === this.FIELD_PRESENCE_RULE_TYPE || this.state.type === this.ALWAYS_MATCH_RULE_TYPE) {
       this.state.value = '';
     }
     this.props.onSubmit(this.props.streamRule.id, this.state);
@@ -52,34 +58,31 @@ const StreamRuleForm = React.createClass({
   },
   render() {
     const streamRuleTypes = this.props.streamRuleTypes.map(this._formatStreamRuleType);
-    const valueBox = (String(this.state.type) !== String(this.FIELD_PRESENCE_RULE_TYPE) ?
-      <Input type="text" required label="Value" valueLink={this.linkState('value')}/> : '');
+    const fieldBox = (String(this.state.type) !== String(this.ALWAYS_MATCH_RULE_TYPE) ?
+      <TypeAheadFieldInput ref="fieldInput" type="text" required label="Field" valueLink={this.linkState('field')} autoFocus /> : '');
+    const valueBox = (String(this.state.type) !== String(this.FIELD_PRESENCE_RULE_TYPE) && String(this.state.type) !== String(this.ALWAYS_MATCH_RULE_TYPE) ?
+      <Input id="Value" type="text" required label="Value" name="Value" valueLink={this.linkState('value')} /> : '');
     return (
       <BootstrapModalForm ref="modal"
                           title={this.props.title}
                           onSubmitForm={this._onSubmit}
-                          submitButtonText="Save">
+                          submitButtonText="Save"
+                          formProps={{id: 'StreamRuleForm'}}>
         <div>
           <Col md={8}>
-            <TypeAheadFieldInput ref="fieldInput"
-                                 type="text"
-                                 required
-                                 label="Field"
-                                 valueLink={this.linkState('field')}
-                                 autoFocus />
-            <Input type="select" required label="Type" valueLink={this.linkState('type')}>
+            {fieldBox}
+            <Input id="Type" type="select" required label="Type" name="Type" valueLink={this.linkState('type')}>
               {streamRuleTypes}
             </Input>
             {valueBox}
-            <Input type="checkbox" label="Inverted" checkedLink={this.linkState('inverted')}/>
+            <Input id="Inverted" type="checkbox" label="Inverted" name="Inverted" checkedLink={this.linkState('inverted')} />
 
-            <Input type="textarea" label="Description" valueLink={this.linkState('description')} />
+            <Input id="Description" type="textarea" label="Description (optional)" name="Description" valueLink={this.linkState('description')} />
 
             <p>
               <strong>Result:</strong>
               {' '}
-              Field <HumanReadableStreamRule streamRule={this.state}
-                                             streamRuleTypes={this.props.streamRuleTypes}/>
+              <HumanReadableStreamRule streamRule={this.state} streamRuleTypes={this.props.streamRuleTypes} />
             </p>
           </Col>
           <Col md={4}>
@@ -88,14 +91,14 @@ const StreamRuleForm = React.createClass({
               can.
 
               <br /><br />
-              <i className="fa fa-github"/>
+              <i className="fa fa-github" />
               <a href={`https://github.com/Graylog2/graylog2-server/tree/${Version.getMajorAndMinorVersion()}/graylog2-server/src/main/java/org/graylog2/streams/matchers`}
                  target="_blank"> Take a look at the matcher code on GitHub
               </a>
               <br /><br />
               Regular expressions use Java syntax. <DocumentationLink page={DocsHelper.PAGES.STREAMS}
                                                                       title="More information"
-                                                                      text={<i className="fa fa-lightbulb-o"/>}/>
+                                                                      text={<i className="fa fa-lightbulb-o" />} />
             </div>
           </Col>
         </div>

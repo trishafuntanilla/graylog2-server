@@ -1,13 +1,15 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 
-import { Input, Panel } from 'react-bootstrap';
+import { Panel } from 'react-bootstrap';
 import naturalSort from 'javascript-natural-sort';
+import { Input } from 'components/bootstrap';
 
 const SidebarMessageField = React.createClass({
   propTypes: {
     field: PropTypes.object,
-    fieldAnalyzers: React.PropTypes.array,
-    onFieldAnalyzer: React.PropTypes.func,
+    fieldAnalyzers: PropTypes.array,
+    onFieldAnalyzer: PropTypes.func,
     onToggled: PropTypes.func,
     selected: PropTypes.bool,
   },
@@ -38,14 +40,14 @@ const SidebarMessageField = React.createClass({
     const analyzersList = this.props.fieldAnalyzers
       .sort((a, b) => naturalSort(a.displayName, b.displayName))
       .map((analyzer, idx) => {
-      return (
-        <li key={'field-analyzer-button-' + idx}>
-          <a href="#" onClick={this._onFieldAnalyzer(analyzer.refId, this.props.field.name)}>
-            {analyzer.displayName}
-          </a>
-        </li>
-      );
-    });
+        return (
+          <li key={`field-analyzer-button-${idx}`}>
+            <a href="#" onClick={this._onFieldAnalyzer(analyzer.refId, this.props.field.name)}>
+              {analyzer.displayName}
+            </a>
+          </li>
+        );
+      });
 
     return <Panel className="field-analyzer"><ul>{analyzersList}</ul></Panel>;
   },
@@ -67,13 +69,13 @@ const SidebarMessageField = React.createClass({
     return (
       <li>
         <div className="pull-left">
-          <a href="#" onClick={this._toggleFieldAnalyzers}><i className={toggleClassName}/></a>
+          <a href="#" onClick={this._toggleFieldAnalyzers}><i className={toggleClassName} /></a>
         </div>
         <div className="field-selector">
           <Input type="checkbox"
                  label={this.props.field.name}
                  checked={this.props.selected}
-                 onChange={() => this.props.onToggled(this.props.field.name)}/>
+                 onChange={() => this.props.onToggled(this.props.field.name)} />
 
           {fieldAnalyzers}
         </div>

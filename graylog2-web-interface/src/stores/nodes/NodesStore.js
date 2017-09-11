@@ -1,22 +1,31 @@
 import Reflux from 'reflux';
 import URLUtils from 'util/URLUtils';
-import fetch from 'logic/rest/FetchProvider';
+import { Builder, fetchPeriodically } from 'logic/rest/FetchProvider';
 
-import ActionsProvider from 'injection/ActionsProvider';
-const NodesActions = ActionsProvider.getActions('Nodes');
+import ApiRoutes from 'routing/ApiRoutes';
+import CombinedProvider from 'injection/CombinedProvider';
+
+const { NodesActions } = CombinedProvider.get('Nodes');
+const { SessionStore } = CombinedProvider.get('Session');
 
 const NodesStore = Reflux.createStore({
   listenables: [NodesActions],
-  sourceUrl: '/system/cluster',
   nodes: undefined,
   clusterId: undefined,
   nodeCount: 0,
   INTERVAL: 5000, // 5 seconds
+  promises: {},
 
   init() {
     if (this.nodes === undefined) {
+      this._triggerList();
+      setInterval(this._triggerList, this.INTERVAL);
+    }
+  },
+
+  _triggerList() {
+    if (SessionStore.isLoggedIn()) {
       NodesActions.list();
-      setInterval(NodesActions.list, this.INTERVAL);
     }
   },
 
@@ -29,8 +38,8 @@ const NodesStore = Reflux.createStore({
   },
 
   list() {
-    const promise = fetch('GET', URLUtils.qualifyUrl(URLUtils.concatURLPath(this.sourceUrl, 'nodes')))
-      .then(response => {
+    const promise = this.promises.list || fetchPeriodically('GET', URLUtils.qualifyUrl(ApiRoutes.ClusterApiResource.list().url))
+      .then((response) => {
         this.nodes = {};
         response.nodes.forEach((node) => {
           this.nodes[node.node_id] = node;
@@ -38,7 +47,11 @@ const NodesStore = Reflux.createStore({
         this.clusterId = this._clusterId();
         this.nodeCount = this._nodeCount();
         this._propagateState();
-      });
+        return response;
+      })
+      .finally(() => delete this.promises.list);
+
+    this.promises.list = promise;
 
     NodesActions.list.promise(promise);
   },

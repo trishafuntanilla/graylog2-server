@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import Reflux from 'reflux';
 import numeral from 'numeral';
@@ -16,9 +17,9 @@ import { Spinner } from 'components/common';
 
 const BufferUsage = React.createClass({
   propTypes: {
-    bufferType: React.PropTypes.string.isRequired,
-    nodeId: React.PropTypes.string.isRequired,
-    title: React.PropTypes.node.isRequired,
+    bufferType: PropTypes.string.isRequired,
+    nodeId: PropTypes.string.isRequired,
+    title: PropTypes.node.isRequired,
   },
   mixins: [Reflux.connect(MetricsStore)],
   componentWillMount() {
@@ -27,7 +28,7 @@ const BufferUsage = React.createClass({
       `${prefix}.usage`,
       `${prefix}.size`,
     ];
-    metricNames.forEach((metricName) => MetricsActions.add(this.props.nodeId, metricName));
+    metricNames.forEach(metricName => MetricsActions.add(this.props.nodeId, metricName));
   },
   _metricPrefix() {
     return `org.graylog2.buffers.${this.props.bufferType}`;

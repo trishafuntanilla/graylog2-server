@@ -26,7 +26,10 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.graylog2.audit.AuditEventTypes;
+import org.graylog2.audit.jersey.AuditEvent;
 import org.graylog2.database.NotFoundException;
+import org.graylog2.decorators.DecoratorProcessor;
 import org.graylog2.indexer.searches.Searches;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.cluster.ClusterConfigService;
@@ -62,8 +65,9 @@ public class SavedSearchesResource extends SearchResource {
     @Inject
     public SavedSearchesResource(Searches searches,
                                  SavedSearchService savedSearchService,
-                                 ClusterConfigService clusterConfigService) {
-        super(searches, clusterConfigService);
+                                 ClusterConfigService clusterConfigService,
+                                 DecoratorProcessor decoratorProcessor) {
+        super(searches, clusterConfigService, decoratorProcessor);
         this.savedSearchService = savedSearchService;
     }
 
@@ -74,6 +78,7 @@ public class SavedSearchesResource extends SearchResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @ApiResponse(code = 400, message = "Validation error")
+    @AuditEvent(type = AuditEventTypes.SAVED_SEARCH_CREATE)
     public Response create(@ApiParam(name = "JSON body", required = true)
                            @Valid CreateSavedSearchRequest cr) throws ValidationException {
         if (!isTitleTaken("", cr.title())) {
@@ -88,7 +93,7 @@ public class SavedSearchesResource extends SearchResource {
                 .path("{searchId}")
                 .build(id);
 
-        return Response.created(searchUri).build();
+        return Response.created(searchUri).entity(ImmutableMap.of("search_id", id)).build();
     }
 
     @GET
@@ -120,6 +125,7 @@ public class SavedSearchesResource extends SearchResource {
             @ApiResponse(code = 400, message = "Invalid ObjectId."),
             @ApiResponse(code = 400, message = "Validation error")
     })
+    @AuditEvent(type = AuditEventTypes.SAVED_SEARCH_UPDATE)
     public Map<String, Object> update(@ApiParam(name = "searchId", required = true)
                                       @PathParam("searchId") String searchId,
                                       @ApiParam(name = "JSON body", required = true)
@@ -158,6 +164,7 @@ public class SavedSearchesResource extends SearchResource {
             @ApiResponse(code = 404, message = "Saved search not found."),
             @ApiResponse(code = 400, message = "Invalid ObjectId.")
     })
+    @AuditEvent(type = AuditEventTypes.SAVED_SEARCH_DELETE)
     public void delete(@ApiParam(name = "searchId", required = true)
                        @PathParam("searchId") String searchId) throws NotFoundException {
         checkPermission(RestPermissions.SAVEDSEARCHES_EDIT, searchId);

@@ -23,6 +23,7 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.cluster.Node;
 import org.graylog2.cluster.NodeNotFoundException;
 import org.graylog2.cluster.NodeService;
@@ -35,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import retrofit2.Response;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -44,6 +46,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 import static javax.ws.rs.core.Response.Status.BAD_GATEWAY;
 
@@ -57,17 +60,19 @@ public class ClusterLoadBalancerStatusResource extends ProxiedResource {
     @Inject
     public ClusterLoadBalancerStatusResource(NodeService nodeService,
                                              RemoteInterfaceProvider remoteInterfaceProvider,
-                                             @Context HttpHeaders httpHeaders) throws NodeNotFoundException {
-        super(httpHeaders, nodeService, remoteInterfaceProvider);
+                                             @Context HttpHeaders httpHeaders,
+                                             @Named("proxiedRequestsExecutorService") ExecutorService executorService) throws NodeNotFoundException {
+        super(httpHeaders, nodeService, remoteInterfaceProvider, executorService);
     }
 
     @PUT
     @Timed
     @RequiresAuthentication
     @RequiresPermissions(RestPermissions.LBSTATUS_CHANGE)
-    @ApiOperation(value = "Override load balancer status of this graylog2-server node. Next lifecycle " +
-            "change will override it again to its default. Set to ALIVE or DEAD.")
+    @ApiOperation(value = "Override load balancer status of this graylog-server node. Next lifecycle " +
+            "change will override it again to its default. Set to ALIVE, DEAD, or THROTTLED.")
     @Path("/override/{status}")
+    @NoAuditEvent("this is a proxy resource, the audit event will be emitted on the target node")
     public void override(@ApiParam(name = "nodeId", value = "The id of the node whose LB status will be changed", required = true)
                          @PathParam("nodeId") String nodeId,
                          @ApiParam(name = "status") @PathParam("status") String status) throws IOException, NodeNotFoundException {

@@ -16,16 +16,26 @@
  */
 package org.graylog2.streams;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
+import com.mongodb.QueryBuilder;
 import org.bson.types.ObjectId;
-import org.graylog2.alerts.AbstractAlertCondition;
+import org.graylog2.alarmcallbacks.AlarmCallbackConfiguration;
+import org.graylog2.alarmcallbacks.AlarmCallbackConfigurationImpl;
+import org.graylog2.alarmcallbacks.AlarmCallbackConfigurationService;
+import org.graylog2.alarmcallbacks.EmailAlarmCallback;
+import org.graylog2.alerts.Alert;
 import org.graylog2.alerts.AlertService;
 import org.graylog2.database.MongoConnection;
 import org.graylog2.database.NotFoundException;
 import org.graylog2.database.PersistedServiceImpl;
+import org.graylog2.indexer.IndexSet;
+import org.graylog2.indexer.MongoIndexSet;
+import org.graylog2.indexer.indexset.IndexSetConfig;
+import org.graylog2.indexer.indexset.IndexSetService;
 import org.graylog2.notifications.Notification;
 import org.graylog2.notifications.NotificationService;
 import org.graylog2.plugin.Tools;
@@ -39,52 +49,83 @@ import org.graylog2.rest.resources.streams.requests.CreateStreamRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.ws.rs.BadRequestException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 public class StreamServiceImpl extends PersistedServiceImpl implements StreamService {
     private static final Logger LOG = LoggerFactory.getLogger(StreamServiceImpl.class);
     private final StreamRuleService streamRuleService;
     private final AlertService alertService;
     private final OutputService outputService;
+    private final IndexSetService indexSetService;
+    private final MongoIndexSet.Factory indexSetFactory;
     private final NotificationService notificationService;
+    private final AlarmCallbackConfigurationService alarmCallbackConfigurationService;
 
     @Inject
     public StreamServiceImpl(MongoConnection mongoConnection,
                              StreamRuleService streamRuleService,
                              AlertService alertService,
                              OutputService outputService,
-                             NotificationService notificationService) {
+                             IndexSetService indexSetService,
+                             MongoIndexSet.Factory indexSetFactory,
+                             NotificationService notificationService,
+                             AlarmCallbackConfigurationService alarmCallbackConfigurationService) {
         super(mongoConnection);
         this.streamRuleService = streamRuleService;
         this.alertService = alertService;
         this.outputService = outputService;
+        this.indexSetService = indexSetService;
+        this.indexSetFactory = indexSetFactory;
         this.notificationService = notificationService;
+        this.alarmCallbackConfigurationService = alarmCallbackConfigurationService;
     }
 
-    @SuppressWarnings("unchecked")
+    @Nullable
+    private IndexSet getIndexSet(DBObject dbObject) {
+        return getIndexSet((String) dbObject.get(StreamImpl.FIELD_INDEX_SET_ID));
+    }
+
+    @Nullable
+    private IndexSet getIndexSet(String id) {
+        if (isNullOrEmpty(id)) {
+            return null;
+        }
+        final Optional<IndexSetConfig> indexSetConfig = indexSetService.get(id);
+        return indexSetConfig.flatMap(c -> Optional.of(indexSetFactory.create(c))).orElse(null);
+    }
+
     public Stream load(ObjectId id) throws NotFoundException {
-        DBObject o = get(StreamImpl.class, id);
+        final DBObject o = get(StreamImpl.class, id);
 
         if (o == null) {
             throw new NotFoundException("Stream <" + id + "> not found!");
         }
 
-        List<StreamRule> streamRules = streamRuleService.loadForStreamId(id.toHexString());
+        final List<StreamRule> streamRules = streamRuleService.loadForStreamId(id.toHexString());
 
-        Set<Output> outputs = loadOutputsForRawStream(o);
+        final Set<Output> outputs = loadOutputsForRawStream(o);
 
-        return new StreamImpl((ObjectId) o.get("_id"), o.toMap(), streamRules, outputs);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> fields = o.toMap();
+        return new StreamImpl((ObjectId) o.get("_id"), fields, streamRules, outputs, getIndexSet(o));
     }
 
     @Override
     public Stream create(Map<String, Object> fields) {
-        return new StreamImpl(fields);
+        return new StreamImpl(fields, getIndexSet((String) fields.get(StreamImpl.FIELD_INDEX_SET_ID)));
     }
 
     @Override
@@ -96,6 +137,8 @@ public class StreamServiceImpl extends PersistedServiceImpl implements StreamSer
         streamData.put(StreamImpl.FIELD_CREATED_AT, Tools.nowUTC());
         streamData.put(StreamImpl.FIELD_CONTENT_PACK, cr.contentPack());
         streamData.put(StreamImpl.FIELD_MATCHING_TYPE, cr.matchingType().toString());
+        streamData.put(StreamImpl.FIELD_REMOVE_MATCHES_FROM_DEFAULT_STREAM, cr.removeMatchesFromDefaultStream());
+        streamData.put(StreamImpl.FIELD_INDEX_SET_ID, cr.indexSetId());
 
         return create(streamData);
     }
@@ -111,10 +154,9 @@ public class StreamServiceImpl extends PersistedServiceImpl implements StreamSer
 
     @Override
     public List<Stream> loadAllEnabled() {
-        return loadAllEnabled(new HashMap<String, Object>());
+        return loadAllEnabled(new HashMap<>());
     }
 
-    @SuppressWarnings("unchecked")
     public List<Stream> loadAllEnabled(Map<String, Object> additionalQueryOpts) {
         additionalQueryOpts.put(StreamImpl.FIELD_DISABLED, false);
 
@@ -123,48 +165,51 @@ public class StreamServiceImpl extends PersistedServiceImpl implements StreamSer
 
     @Override
     public List<Stream> loadAll() {
-        return loadAll(new HashMap<String, Object>());
+        return loadAll(Collections.emptyMap());
     }
 
-    @SuppressWarnings("unchecked")
     public List<Stream> loadAll(Map<String, Object> additionalQueryOpts) {
-        List<Stream> streams = Lists.newArrayList();
+        final DBObject query = new BasicDBObject(additionalQueryOpts);
+        return loadAll(query);
+    }
 
-        DBObject query = new BasicDBObject();
+    private List<Stream> loadAll(DBObject query) {
+        final List<DBObject> results = query(StreamImpl.class, query);
+        final List<String> streamIds = results.stream()
+                .map(o -> o.get("_id").toString())
+                .collect(Collectors.toList());
+        final Map<String, List<StreamRule>> allStreamRules = streamRuleService.loadForStreamIds(streamIds);
 
-        // putAll() is not working with BasicDBObject.
-        for (Map.Entry<String, Object> o : additionalQueryOpts.entrySet()) {
-            query.put(o.getKey(), o.getValue());
-        }
-
-        List<DBObject> results = query(StreamImpl.class, query);
+        final ImmutableList.Builder<Stream> streams = ImmutableList.builder();
         for (DBObject o : results) {
-            String id = o.get("_id").toString();
-            List<StreamRule> streamRules = null;
-            try {
-                streamRules = streamRuleService.loadForStreamId(id);
-            } catch (NotFoundException e) {
-                LOG.info("Exception while loading stream rules: " + e);
-            }
+            final ObjectId objectId = (ObjectId) o.get("_id");
+            final String id = objectId.toHexString();
+            final List<StreamRule> streamRules = allStreamRules.getOrDefault(id, Collections.emptyList());
+            LOG.debug("Found {} rules for stream <{}>", streamRules.size(), id);
 
             final Set<Output> outputs = loadOutputsForRawStream(o);
 
-            streams.add(new StreamImpl((ObjectId) o.get("_id"), o.toMap(), streamRules, outputs));
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> fields = o.toMap();
+
+            streams.add(new StreamImpl(objectId, fields, streamRules, outputs, getIndexSet(o)));
         }
 
-        return streams;
+        return streams.build();
     }
 
     @Override
     public List<Stream> loadAllWithConfiguredAlertConditions() {
-        // Explanation: alert_conditions.1 is the first Array element.
-        Map<String, Object> queryOpts = Collections.<String, Object>singletonMap(
-                StreamImpl.EMBEDDED_ALERT_CONDITIONS, new BasicDBObject("$ne", Collections.emptyList()));
+        final DBObject query = QueryBuilder.start().and(
+            QueryBuilder.start(StreamImpl.EMBEDDED_ALERT_CONDITIONS).exists(true).get(),
+            QueryBuilder.start(StreamImpl.EMBEDDED_ALERT_CONDITIONS).not().size(0).get()
+        ).get();
 
-        return loadAll(queryOpts);
+        return loadAll(query);
     }
 
     protected Set<Output> loadOutputsForRawStream(DBObject stream) {
+        @SuppressWarnings("unchecked")
         List<ObjectId> outputIds = (List<ObjectId>) stream.get(StreamImpl.FIELD_OUTPUTS);
 
         Set<Output> result = new HashSet<>();
@@ -233,15 +278,13 @@ public class StreamServiceImpl extends PersistedServiceImpl implements StreamSer
         List<AlertCondition> conditions = Lists.newArrayList();
 
         if (stream.getFields().containsKey(StreamImpl.EMBEDDED_ALERT_CONDITIONS)) {
-            for (BasicDBObject conditionFields : (List<BasicDBObject>) stream.getFields().get(StreamImpl.EMBEDDED_ALERT_CONDITIONS)) {
+            @SuppressWarnings("unchecked")
+            final List<BasicDBObject> alertConditions = (List<BasicDBObject>) stream.getFields().get(StreamImpl.EMBEDDED_ALERT_CONDITIONS);
+            for (BasicDBObject conditionFields : alertConditions) {
                 try {
                     conditions.add(alertService.fromPersisted(conditionFields, stream));
-                } catch (AbstractAlertCondition.NoSuchAlertConditionTypeException e) {
-                    LOG.error("Skipping unknown alert condition type.", e);
-                    continue;
                 } catch (Exception e) {
                     LOG.error("Skipping alert condition.", e);
-                    continue;
                 }
             }
         }
@@ -252,22 +295,20 @@ public class StreamServiceImpl extends PersistedServiceImpl implements StreamSer
     @Override
     public AlertCondition getAlertCondition(Stream stream, String conditionId) throws NotFoundException {
         if (stream.getFields().containsKey(StreamImpl.EMBEDDED_ALERT_CONDITIONS)) {
-            for (BasicDBObject conditionFields : (List<BasicDBObject>) stream.getFields().get(StreamImpl.EMBEDDED_ALERT_CONDITIONS)) {
+            @SuppressWarnings("unchecked")
+            final List<BasicDBObject> alertConditions = (List<BasicDBObject>) stream.getFields().get(StreamImpl.EMBEDDED_ALERT_CONDITIONS);
+            for (BasicDBObject conditionFields : alertConditions) {
                 try {
                     if (conditionFields.get("id").equals(conditionId)) {
                         return alertService.fromPersisted(conditionFields, stream);
                     }
-                } catch (AbstractAlertCondition.NoSuchAlertConditionTypeException e) {
-                    LOG.error("Skipping unknown alert condition type.", e);
-                    continue;
                 } catch (Exception e) {
                     LOG.error("Skipping alert condition.", e);
-                    continue;
                 }
             }
         }
 
-        throw new org.graylog2.database.NotFoundException();
+        throw new NotFoundException("Alert condition <" + conditionId + "> for stream <" + stream.getId() + "> not found");
     }
 
     @Override
@@ -281,25 +322,74 @@ public class StreamServiceImpl extends PersistedServiceImpl implements StreamSer
         addAlertCondition(stream, condition);
     }
 
+    @Override
     public void removeAlertCondition(Stream stream, String conditionId) {
+        // Before deleting alert condition, resolve all its alerts.
+        final List<Alert> alerts = alertService.listForStreamIds(Collections.singletonList(stream.getId()), Alert.AlertState.UNRESOLVED, 0, 0);
+        alerts.stream()
+                .filter(alert -> alert.getConditionId().equals(conditionId))
+                .forEach(alertService::resolveAlert);
+
         removeEmbedded(stream, StreamImpl.EMBEDDED_ALERT_CONDITIONS, conditionId);
     }
 
     @Override
     public void addAlertReceiver(Stream stream, String type, String name) {
-        collection(stream).update(
-                new BasicDBObject("_id", new ObjectId(stream.getId())),
-                new BasicDBObject("$push", new BasicDBObject("alert_receivers." + type, name))
-        );
+        final List<AlarmCallbackConfiguration> streamCallbacks = alarmCallbackConfigurationService.getForStream(stream);
+        updateCallbackConfiguration("add", type, name, streamCallbacks);
     }
 
     @Override
     public void removeAlertReceiver(Stream stream, String type, String name) {
-        collection(stream).update(
-                new BasicDBObject("_id", new ObjectId(stream.getId())),
-                new BasicDBObject("$pull", new BasicDBObject("alert_receivers." + type, name))
-        );
+        final List<AlarmCallbackConfiguration> streamCallbacks = alarmCallbackConfigurationService.getForStream(stream);
+        updateCallbackConfiguration("remove", type, name, streamCallbacks);
     }
+
+    // I tried to be sorry, really. https://www.youtube.com/watch?v=3KVyRqloGmk
+    private void updateCallbackConfiguration(String action, String type, String entity, List<AlarmCallbackConfiguration> streamCallbacks) {
+        final AtomicBoolean ran = new AtomicBoolean(false);
+
+        streamCallbacks.stream()
+                .filter(callback -> callback.getType().equals(EmailAlarmCallback.class.getCanonicalName()))
+                .forEach(callback -> {
+                    ran.set(true);
+                    final Map<String, Object> configuration = callback.getConfiguration();
+                    String key;
+
+                    if ("users".equals(type)) {
+                        key = EmailAlarmCallback.CK_USER_RECEIVERS;
+                    } else {
+                        key = EmailAlarmCallback.CK_EMAIL_RECEIVERS;
+                    }
+
+                    @SuppressWarnings("unchecked")
+                    final List<String> recipients = (List<String>) configuration.get(key);
+                    if ("add".equals(action)) {
+                        if (!recipients.contains(entity)) {
+                            recipients.add(entity);
+                        }
+                    } else {
+                        if (recipients.contains(entity)) {
+                            recipients.remove(entity);
+                        }
+                    }
+                    configuration.put(key, recipients);
+
+                    final AlarmCallbackConfiguration updatedConfig = ((AlarmCallbackConfigurationImpl) callback).toBuilder()
+                            .setConfiguration(configuration)
+                            .build();
+                    try {
+                        alarmCallbackConfigurationService.save(updatedConfig);
+                    } catch (ValidationException e) {
+                        throw new BadRequestException("Unable to save alarm callback configuration", e);
+                    }
+                });
+
+        if (!ran.get()) {
+            throw new BadRequestException("Unable to " + action + " receiver: Stream has no email alarm callback.");
+        }
+    }
+
 
     @Override
     public void addOutput(Stream stream, Output output) {
@@ -326,5 +416,11 @@ public class StreamServiceImpl extends PersistedServiceImpl implements StreamSer
         collection(StreamImpl.class).update(
                 match, modify, false, true
         );
+    }
+
+    @Override
+    public List<Stream> loadAllWithIndexSet(String indexSetId) {
+        final Map<String, Object> query = new BasicDBObject(StreamImpl.FIELD_INDEX_SET_ID, indexSetId);
+        return loadAll(query);
     }
 }

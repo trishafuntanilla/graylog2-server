@@ -1,7 +1,8 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
 
-import { IfPermitted, Spinner } from 'components/common';
+import { DocumentTitle, IfPermitted, Spinner } from 'components/common';
 import GettingStarted from 'components/gettingstarted/GettingStarted';
 import UsageStatsOptOut from 'components/usagestats/UsageStatsOptOut';
 
@@ -25,21 +26,23 @@ const GettingStartedPage = React.createClass({
   },
   render() {
     if (this._isLoading()) {
-      return <Spinner/>;
+      return <Spinner />;
     }
 
     return (
-      <div>
-        <IfPermitted permissions="clusterconfigentry:edit:org.graylog.plugins.usagestatistics.UsageStatsOptOutState">
-          <UsageStatsOptOut />
-        </IfPermitted>
-        <GettingStarted clusterId={this.state.system.cluster_id}
-                        masterOs={this.state.system.operating_system}
-                        masterVersion={this.state.system.version}
-                        gettingStartedUrl={GETTING_STARTED_URL}
-                        noDismissButton={Boolean(this.props.location.query.menu)}
-                        onDismiss={this._onDismiss}/>
-      </div>
+      <DocumentTitle title="Getting started">
+        <div>
+          <IfPermitted permissions="clusterconfigentry:edit:org.graylog.plugins.usagestatistics.UsageStatsOptOutState">
+            <UsageStatsOptOut />
+          </IfPermitted>
+          <GettingStarted clusterId={this.state.system.cluster_id}
+                          masterOs={this.state.system.operating_system}
+                          masterVersion={this.state.system.version}
+                          gettingStartedUrl={GETTING_STARTED_URL}
+                          noDismissButton={Boolean(this.props.location.query.menu)}
+                          onDismiss={this._onDismiss} />
+        </div>
+      </DocumentTitle>
     );
   },
 });

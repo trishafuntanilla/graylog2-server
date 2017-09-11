@@ -1,87 +1,49 @@
 import React from 'react';
-import Reflux from 'reflux';
-import { Alert, Col, Row } from 'react-bootstrap';
-import numeral from 'numeral';
+import { Button, Col, Row } from 'react-bootstrap';
+import { LinkContainer } from 'react-router-bootstrap';
 
-import ActionsProvider from 'injection/ActionsProvider';
-const IndexerOverviewActions = ActionsProvider.getActions('IndexerOverview');
-const IndicesActions = ActionsProvider.getActions('Indices');
-
-import StoreProvider from 'injection/StoreProvider';
-const IndexerOverviewStore = StoreProvider.getStore('IndexerOverview');
-const IndicesStore = StoreProvider.getStore('Indices');
+import Routes from 'routing/Routes';
 
 import DocsHelper from 'util/DocsHelper';
-import { PageHeader, Spinner } from 'components/common';
+import { DocumentTitle, PageHeader } from 'components/common';
 import { DocumentationLink } from 'components/support';
-import { IndexerClusterHealthSummary } from 'components/indexers';
-import { IndicesMaintenanceDropdown, IndicesOverview } from 'components/indices';
-import IndicesConfiguration from 'components/indices/IndicesConfiguration';
+import { IndexSetsComponent } from 'components/indices';
 
 const IndicesPage = React.createClass({
-  mixins: [
-    Reflux.connect(IndicesStore, 'indexDetails'),
-    Reflux.connect(IndexerOverviewStore),
-  ],
-  componentDidMount() {
-    IndicesActions.list();
-    this.timerId = setInterval(() => {
-      IndicesActions.multiple();
-      IndexerOverviewActions.list();
-    }, this.REFRESH_INTERVAL);
-  },
-  componentWillUnmount() {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-    }
-  },
-  REFRESH_INTERVAL: 2000,
-  _totalIndexCount() {
-    return (Object.keys(this.state.indexerOverview.indices).length + this.state.indexDetails.closedIndices.length);
-  },
   render() {
-    if (!this.state.indexerOverview || !this.state.indexDetails.closedIndices) {
-      return <Spinner />;
-    }
-    const deflectorInfo = this.state.indexerOverview.deflector;
+    const pageHeader = (
+      <PageHeader title="Indices & Index Sets">
+        <span>
+          A Graylog stream write messages to an index set, which is a configuration for retention, sharding, and
+          replication of the stored data.
+          By configuring index sets, you could, for example, have different retention times for certain streams.
+        </span>
+
+        <span>
+          You can learn more about the index model in the{' '}
+          <DocumentationLink page={DocsHelper.PAGES.INDEX_MODEL} text="documentation" />
+        </span>
+
+        <span>
+          <LinkContainer to={Routes.SYSTEM.INDEX_SETS.CREATE}>
+            <Button bsStyle="success" bsSize="lg">Create index set</Button>
+          </LinkContainer>
+        </span>
+      </PageHeader>
+    );
+
     return (
-      <span>
-        <PageHeader title="Indices">
-          <span>
-            This is an overview of all indices (message stores) Graylog is currently taking in account
-            for searches and analysis.
-          </span>
+      <DocumentTitle title="Indices and Index Sets">
+        <span>
+          {pageHeader}
 
-          <span>
-            You can learn more about the index model in the{' '}
-            <DocumentationLink page={DocsHelper.PAGES.INDEX_MODEL} text="documentation" />
-          </span>
-
-          <IndicesMaintenanceDropdown />
-        </PageHeader>
-
-        <Row className="content">
-          <Col md={12}>
-            <IndicesConfiguration />
-          </Col>
-        </Row>
-
-        <Row className="content">
-          <Col md={12}>
-            <Alert bsStyle="success" style={{ marginTop: '10' }}>
-              <i className="fa fa-th"/> &nbsp;{this._totalIndexCount()} indices with a total of{' '}
-              {numeral(this.state.indexerOverview.counts.events).format('0,0')} messages under management,
-              current write-active index is <i>{deflectorInfo.current_target}</i>.
-            </Alert>
-            <IndexerClusterHealthSummary health={this.state.indexerOverview.indexer_cluster.health} />
-          </Col>
-        </Row>
-
-        <IndicesOverview indices={this.state.indexerOverview.indices}
-                         indexDetails={this.state.indexDetails.indices}
-                         closedIndices={this.state.indexDetails.closedIndices}
-                         deflector={this.state.indexerOverview.deflector}/>
-      </span>
+          <Row className="content">
+            <Col md={12}>
+              <IndexSetsComponent />
+            </Col>
+          </Row>
+        </span>
+      </DocumentTitle>
     );
   },
 });

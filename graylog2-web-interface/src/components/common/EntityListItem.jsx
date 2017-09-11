@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import { Row, Col } from 'react-bootstrap';
 
 const EntityListItem = React.createClass({
@@ -20,23 +21,33 @@ const EntityListItem = React.createClass({
     if (this.props.titleSuffix) {
       titleSuffix = <small>{this.props.titleSuffix}</small>;
     }
+
+    const actionsContainer = (
+      <div className="item-actions text-right">
+        {this.props.actions}
+      </div>
+    );
+
     return (
       <li className="entity-list-item">
         <Row className="row-sm">
-          <Col md={6}>
-            <h2>{this.props.title} {titleSuffix}</h2>
-            <div className="item-description">
-              {this.props.createdFromContentPack &&
-              <span><i className="fa fa-cube" title="Created from content pack" />&nbsp;</span>
-              }
-              <span>{this.props.description}</span>
+          <Col md={12}>
+            <div className="pull-right hidden-xs">
+              {actionsContainer}
             </div>
+            <h2>{this.props.title} {titleSuffix}</h2>
+            {(this.props.createdFromContentPack || this.props.description) &&
+              <div className="item-description">
+                {this.props.createdFromContentPack &&
+                <span><i className="fa fa-cube" title="Created from content pack" />&nbsp;</span>
+              }
+                <span>{this.props.description}</span>
+              </div>
+            }
           </Col>
 
-          <Col md={6}>
-            <div className="item-actions text-right">
-              {this.props.actions}
-            </div>
+          <Col sm={12} lgHidden mdHidden smHidden>
+            {actionsContainer}
           </Col>
         </Row>
 

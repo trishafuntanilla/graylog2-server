@@ -74,20 +74,21 @@ public class InputImpl extends PersistedImpl implements Input {
 
     @Override
     public Map<String, Validator> getEmbeddedValidations(String key) {
-        if (key.equals(EMBEDDED_EXTRACTORS)) {
+        if (EMBEDDED_EXTRACTORS.equals(key)) {
             final ImmutableMap.Builder<String, Validator> validations = ImmutableMap.builder();
             validations.put(Extractor.FIELD_ID, new FilledStringValidator());
             validations.put(Extractor.FIELD_TITLE, new FilledStringValidator());
             validations.put(Extractor.FIELD_TYPE, new FilledStringValidator());
             validations.put(Extractor.FIELD_CURSOR_STRATEGY, new FilledStringValidator());
-            validations.put(Extractor.FIELD_TARGET_FIELD, new FilledStringValidator());
+            validations.put(Extractor.FIELD_TARGET_FIELD, new OptionalStringValidator());
             validations.put(Extractor.FIELD_SOURCE_FIELD, new FilledStringValidator());
             validations.put(Extractor.FIELD_CREATOR_USER_ID, new FilledStringValidator());
             validations.put(Extractor.FIELD_EXTRACTOR_CONFIG, new MapValidator());
+            return validations.build();
         }
 
-        if (key.equals(EMBEDDED_STATIC_FIELDS)) {
-            return ImmutableMap.<String, Validator>of(
+        if (EMBEDDED_STATIC_FIELDS.equals(key)) {
+            return ImmutableMap.of(
                     FIELD_STATIC_FIELD_KEY, new FilledStringValidator(),
                     FIELD_STATIC_FIELD_VALUE, new FilledStringValidator());
         }

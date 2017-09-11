@@ -17,11 +17,12 @@
 package org.graylog2.periodical;
 
 import org.graylog2.configuration.ElasticsearchConfiguration;
+import org.graylog2.indexer.IndexSet;
+import org.graylog2.indexer.IndexSetRegistry;
 import org.graylog2.indexer.cluster.Cluster;
-import org.graylog2.indexer.management.IndexManagementConfig;
+import org.graylog2.indexer.indexset.IndexSetConfig;
 import org.graylog2.notifications.Notification;
 import org.graylog2.notifications.NotificationService;
-import org.graylog2.plugin.cluster.ClusterConfigService;
 import org.graylog2.plugin.indexer.retention.RetentionStrategy;
 import org.graylog2.plugin.periodical.Periodical;
 import org.graylog2.plugin.system.NodeId;
@@ -38,22 +39,22 @@ public class IndexRetentionThread extends Periodical {
     private static final Logger LOG = LoggerFactory.getLogger(IndexRetentionThread.class);
 
     private final ElasticsearchConfiguration configuration;
+    private final IndexSetRegistry indexSetRegistry;
     private final Cluster cluster;
-    private final ClusterConfigService clusterConfigService;
     private final NodeId nodeId;
     private final NotificationService notificationService;
     private final Map<String, Provider<RetentionStrategy>> retentionStrategyMap;
 
     @Inject
     public IndexRetentionThread(ElasticsearchConfiguration configuration,
+                                IndexSetRegistry indexSetRegistry,
                                 Cluster cluster,
-                                ClusterConfigService clusterConfigService,
                                 NodeId nodeId,
                                 NotificationService notificationService,
                                 Map<String, Provider<RetentionStrategy>> retentionStrategyMap) {
         this.configuration = configuration;
+        this.indexSetRegistry = indexSetRegistry;
         this.cluster = cluster;
-        this.clusterConfigService = clusterConfigService;
         this.nodeId = nodeId;
         this.notificationService = notificationService;
         this.retentionStrategyMap = retentionStrategyMap;
@@ -66,27 +67,23 @@ public class IndexRetentionThread extends Periodical {
             return;
         }
 
-        final IndexManagementConfig config = clusterConfigService.get(IndexManagementConfig.class);
+        for (final IndexSet indexSet : indexSetRegistry) {
+            if (!indexSet.getConfig().isWritable()) {
+                LOG.debug("Skipping non-writable index set <{}> ({})", indexSet.getConfig().id(), indexSet.getConfig().title());
+                continue;
+            }
+            final IndexSetConfig config = indexSet.getConfig();
+            final Provider<RetentionStrategy> retentionStrategyProvider = retentionStrategyMap.get(config.retentionStrategyClass());
 
-        if (config == null) {
-            LOG.warn("No index management configuration found, not running index retention!");
-            retentionProblemNotification("Index Retention Problem!",
-                    "No index management configuration found, not running index retention! Please fix your index retention configuration!");
-            return;
+            if (retentionStrategyProvider == null) {
+                LOG.warn("Retention strategy \"{}\" not found, not running index retention!", config.retentionStrategyClass());
+                retentionProblemNotification("Index Retention Problem!",
+                        "Index retention strategy " + config.retentionStrategyClass() + " not found! Please fix your index retention configuration!");
+                continue;
+            }
+
+            retentionStrategyProvider.get().retain(indexSet);
         }
-
-        final Provider<RetentionStrategy> retentionStrategyProvider = retentionStrategyMap.get(config.retentionStrategy());
-
-        if (retentionStrategyProvider == null) {
-            LOG.warn("Retention strategy \"{}\" not found, not running index retention!", config.retentionStrategy());
-            retentionProblemNotification("Index Retention Problem!",
-                    "Index retention strategy " + config.retentionStrategy() + " not found! Please fix your index retention configuration!");
-            return;
-        }
-
-        final RetentionStrategy retentionStrategy = retentionStrategyProvider.get();
-
-        retentionStrategy.retain();
     }
 
     private void retentionProblemNotification(String title, String description) {

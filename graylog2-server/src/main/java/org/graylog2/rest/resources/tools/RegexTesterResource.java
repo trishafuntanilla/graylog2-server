@@ -19,13 +19,15 @@ package org.graylog2.rest.resources.tools;
 
 import com.codahale.metrics.annotation.Timed;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
-import org.graylog2.shared.rest.resources.RestResource;
-import org.graylog2.rest.models.tools.responses.RegexTesterResponse;
+import org.graylog2.audit.jersey.NoAuditEvent;
 import org.graylog2.rest.models.tools.requests.RegexTestRequest;
+import org.graylog2.rest.models.tools.responses.RegexTesterResponse;
+import org.graylog2.shared.rest.resources.RestResource;
 import org.hibernate.validator.constraints.NotEmpty;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
+import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -35,6 +37,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 @RequiresAuthentication
 @Path("/tools/regex_tester")
@@ -51,12 +54,20 @@ public class RegexTesterResource extends RestResource {
     @Timed
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @NoAuditEvent("only used to test regex values")
     public RegexTesterResponse testRegex(@Valid @NotNull RegexTestRequest regexTestRequest) {
         return doTestRegex(regexTestRequest.string(), regexTestRequest.regex());
     }
 
     private RegexTesterResponse doTestRegex(String example, String regex) {
-        final Matcher matcher = Pattern.compile(regex, Pattern.DOTALL).matcher(example);
+        final Pattern pattern;
+        try {
+            pattern = Pattern.compile(regex, Pattern.DOTALL);
+        } catch (PatternSyntaxException e) {
+            throw new BadRequestException("Invalid regular expression: " + e.getMessage(), e);
+        }
+
+        final Matcher matcher = pattern.matcher(example);
         boolean matched = matcher.find();
 
         // Get the first matched group.

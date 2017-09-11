@@ -1,4 +1,4 @@
-import ApiRoutes from 'routing/ApiRoutes';
+import Routes from 'routing/Routes';
 
 const ExtractorTypes = Object.freeze({
   COPY_INPUT: 'copy_input',
@@ -8,6 +8,7 @@ const ExtractorTypes = Object.freeze({
   REGEX_REPLACE: 'regex_replace',
   SPLIT_AND_INDEX: 'split_and_index',
   SUBSTRING: 'substring',
+  LOOKUP_TABLE: 'lookup_table',
 });
 
 const ExtractorUtils = {
@@ -24,14 +25,15 @@ const ExtractorUtils = {
     LOWERCASE: 'lowercase',
     UPPERCASE: 'uppercase',
     FLEXDATE: 'flexdate',
+    LOOKUP_TABLE: 'lookup_table',
   }),
   ExtractorTypes: ExtractorTypes,
   EXTRACTOR_TYPES: Object.keys(ExtractorTypes).map(type => type.toLocaleLowerCase()),
 
   getNewExtractorRoutes(sourceNodeId, sourceInputId, fieldName, messageIndex, messageId) {
     const routes = {};
-    this.EXTRACTOR_TYPES.forEach(extractorType => {
-      routes[extractorType] = ApiRoutes.ExtractorsController.newExtractor(sourceNodeId, sourceInputId, extractorType, fieldName, messageIndex, messageId).url;
+    this.EXTRACTOR_TYPES.forEach((extractorType) => {
+      routes[extractorType] = Routes.new_extractor(sourceNodeId, sourceInputId, extractorType, fieldName, messageIndex, messageId);
     });
 
     return routes;
@@ -53,6 +55,8 @@ const ExtractorUtils = {
         return 'Split & Index';
       case ExtractorTypes.SUBSTRING:
         return 'Substring';
+      case ExtractorTypes.LOOKUP_TABLE:
+        return 'Lookup Table';
       default:
         return extractorType;
     }
@@ -84,6 +88,8 @@ const ExtractorUtils = {
         return 'Syslog Level From PRI';
       case this.ConverterTypes.SYSLOG_PRI_FACILITY:
         return 'Syslog Facility From PRI';
+      case this.ConverterTypes.LOOKUP_TABLE:
+        return 'Lookup Table';
       default:
         return converterType;
     }

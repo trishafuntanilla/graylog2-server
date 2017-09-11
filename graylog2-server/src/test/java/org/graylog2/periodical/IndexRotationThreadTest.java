@@ -17,34 +17,40 @@
 package org.graylog2.periodical;
 
 import com.google.common.collect.ImmutableMap;
-import org.graylog2.indexer.Deflector;
+import org.graylog2.indexer.IndexSet;
+import org.graylog2.indexer.IndexSetRegistry;
 import org.graylog2.indexer.NoTargetIndexException;
 import org.graylog2.indexer.cluster.Cluster;
+import org.graylog2.indexer.indexset.IndexSetConfig;
 import org.graylog2.indexer.indices.Indices;
-import org.graylog2.indexer.management.IndexManagementConfig;
 import org.graylog2.notifications.NotificationService;
-import org.graylog2.plugin.cluster.ClusterConfigService;
 import org.graylog2.plugin.indexer.rotation.RotationStrategy;
 import org.graylog2.plugin.indexer.rotation.RotationStrategyConfig;
 import org.graylog2.plugin.system.NodeId;
 import org.graylog2.shared.system.activities.NullActivityWriter;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import javax.inject.Provider;
 
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
 public class IndexRotationThreadTest {
+    @Rule
+    public final MockitoRule mockitoRule = MockitoJUnit.rule();
+
     @Mock
-    private Deflector deflector;
+    private IndexSet indexSet;
+    @Mock
+    private IndexSetConfig indexSetConfig;
     @Mock
     private NotificationService notificationService;
     @Mock
@@ -52,157 +58,102 @@ public class IndexRotationThreadTest {
     @Mock
     private Cluster cluster;
     @Mock
-    private ClusterConfigService clusterConfigService;
+    private NodeId nodeId;
+    @Mock
+    private IndexSetRegistry indexSetRegistry;
 
-    @Test
-    public void testFailedRotation() {
-        final Provider<RotationStrategy> provider = new Provider<RotationStrategy>() {
-            @Override
-            public RotationStrategy get() {
-                return new RotationStrategy() {
-                    @Override
-                    public void rotate() {
-                    }
-
-                    @Override
-                    public RotationStrategyConfig defaultConfiguration() {
-                        return null;
-                    }
-
-                    @Override
-                    public Class<? extends RotationStrategyConfig> configurationClass() {
-                        return null;
-                    }
-                };
-            }
-        };
-
-        when(clusterConfigService.get(IndexManagementConfig.class)).thenReturn(IndexManagementConfig.create("strategy", "retention"));
-
-        final IndexRotationThread rotationThread = new IndexRotationThread(
-                notificationService,
-                indices,
-                deflector,
-                cluster,
-                new NullActivityWriter(),
-                mock(NodeId.class),
-                clusterConfigService,
-                ImmutableMap.<String, Provider<RotationStrategy>>builder().put("strategy", provider).build()
-        );
-
-        rotationThread.checkForRotation();
-
-        verify(deflector, never()).cycle();
+    @Before
+    public void setUp() throws Exception {
+        when(indexSet.getConfig()).thenReturn(indexSetConfig);
     }
 
     @Test
     public void testPerformRotation() throws NoTargetIndexException {
-        final Provider<RotationStrategy> provider = new Provider<RotationStrategy>() {
+        final Provider<RotationStrategy> provider = new RotationStrategyProvider() {
             @Override
-            public RotationStrategy get() {
-                return new RotationStrategy() {
-                    @Override
-                    public void rotate() {
-                        deflector.cycle();
-                    }
-
-                    @Override
-                    public RotationStrategyConfig defaultConfiguration() {
-                        return null;
-                    }
-
-                    @Override
-                    public Class<? extends RotationStrategyConfig> configurationClass() {
-                        return null;
-                    }
-                };
+            public void doRotate(IndexSet indexSet) {
+                indexSet.cycle();
             }
         };
-
-        when(clusterConfigService.get(IndexManagementConfig.class)).thenReturn(IndexManagementConfig.create("strategy", "retention"));
 
         final IndexRotationThread rotationThread = new IndexRotationThread(
                 notificationService,
                 indices,
-                deflector,
+                indexSetRegistry,
                 cluster,
                 new NullActivityWriter(),
-                mock(NodeId.class),
-                clusterConfigService,
+                nodeId,
                 ImmutableMap.<String, Provider<RotationStrategy>>builder().put("strategy", provider).build()
         );
+        when(indexSetConfig.rotationStrategyClass()).thenReturn("strategy");
 
-        when(deflector.getNewestTargetName()).thenReturn("some_index");
+        rotationThread.checkForRotation(indexSet);
 
-        rotationThread.checkForRotation();
-
-        verify(deflector, times(1)).cycle();
+        verify(indexSet, times(1)).cycle();
     }
 
     @Test
-    public void testDontPerformRotation() throws NoTargetIndexException {
-        final Provider<RotationStrategy> provider = new Provider<RotationStrategy>() {
-            @Override
-            public RotationStrategy get() {
-                return new RotationStrategy() {
-                    @Override
-                    public void rotate() {
-                    }
-
-                    @Override
-                    public RotationStrategyConfig defaultConfiguration() {
-                        return null;
-                    }
-
-                    @Override
-                    public Class<? extends RotationStrategyConfig> configurationClass() {
-                        return null;
-                    }
-                };
-            }
-        };
-
-        when(clusterConfigService.get(IndexManagementConfig.class)).thenReturn(IndexManagementConfig.create("strategy", "retention"));
+    public void testDoNotPerformRotation() throws NoTargetIndexException {
+        final Provider<RotationStrategy> provider = new RotationStrategyProvider();
 
         final IndexRotationThread rotationThread = new IndexRotationThread(
                 notificationService,
                 indices,
-                deflector,
+                indexSetRegistry,
                 cluster,
                 new NullActivityWriter(),
-                mock(NodeId.class),
-                clusterConfigService,
+                nodeId,
                 ImmutableMap.<String, Provider<RotationStrategy>>builder().put("strategy", provider).build()
         );
+        when(indexSetConfig.rotationStrategyClass()).thenReturn("strategy");
 
-        when(deflector.getNewestTargetName()).thenReturn("some_index");
+        rotationThread.checkForRotation(indexSet);
 
-        rotationThread.checkForRotation();
-
-        verify(deflector, never()).cycle();
+        verify(indexSet, never()).cycle();
     }
 
     @Test
-    public void testDontPerformRotationIfClusterIsDown() throws NoTargetIndexException {
-        final Provider<RotationStrategy> provider = mock(Provider.class);
+    public void testDoNotPerformRotationIfClusterIsDown() throws NoTargetIndexException {
+        final Provider<RotationStrategy> provider = spy(new RotationStrategyProvider());
         when(cluster.isConnected()).thenReturn(false);
-        when(cluster.isHealthy()).thenReturn(false);
-        when(clusterConfigService.get(IndexManagementConfig.class)).thenReturn(IndexManagementConfig.create("strategy", "retention"));
 
         final IndexRotationThread rotationThread = new IndexRotationThread(
                 notificationService,
                 indices,
-                deflector,
+                indexSetRegistry,
                 cluster,
                 new NullActivityWriter(),
-                mock(NodeId.class),
-                clusterConfigService,
+                nodeId,
                 ImmutableMap.<String, Provider<RotationStrategy>>builder().put("strategy", provider).build()
         );
-
         rotationThread.doRun();
 
-        verify(deflector, never()).cycle();
+        verify(indexSet, never()).cycle();
         verify(provider, never()).get();
+    }
+
+    private static class RotationStrategyProvider implements Provider<RotationStrategy> {
+        @Override
+        public RotationStrategy get() {
+            return new RotationStrategy() {
+                @Override
+                public void rotate(IndexSet indexSet) {
+                    doRotate(indexSet);
+                }
+
+                @Override
+                public RotationStrategyConfig defaultConfiguration() {
+                    return null;
+                }
+
+                @Override
+                public Class<? extends RotationStrategyConfig> configurationClass() {
+                    return null;
+                }
+            };
+        }
+
+        public void doRotate(IndexSet indexSet) {
+        }
     }
 }

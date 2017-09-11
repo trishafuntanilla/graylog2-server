@@ -14,7 +14,7 @@ const processSourcesData = (sources: Object): Array<Source> => {
     let total = 0;
     let sourcesArray = [];
     $.each(sources, (name, count) => {
-        total += count;
+        total += Number(count);
         sourcesArray.push({name: StringUtils.escapeHTML(name), message_count: count})
     });
     sourcesArray.forEach((d) => {
@@ -24,7 +24,7 @@ const processSourcesData = (sources: Object): Array<Source> => {
 };
 
 const SourcesStore = {
-    SOURCES_URL: URLUtils.appPrefixed('/sources'),
+    SOURCES_URL: '/sources',
 
     loadSources(range: number, callback: (sources: Array<Source>) => void) {
         let url = URLUtils.qualifyUrl(this.SOURCES_URL);

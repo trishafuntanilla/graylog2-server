@@ -17,20 +17,16 @@
 package org.graylog2.alerts;
 
 import com.google.common.collect.Maps;
-import com.google.inject.assistedinject.Assisted;
-import org.graylog2.alerts.types.FieldContentValueAlertCondition;
-import org.graylog2.alerts.types.FieldValueAlertCondition;
-import org.graylog2.alerts.types.MessageCountAlertCondition;
-import org.graylog2.database.MongoConnection;
 import org.graylog2.indexer.searches.Searches;
 import org.graylog2.plugin.Tools;
 import org.graylog2.plugin.alarms.AlertCondition;
 import org.graylog2.plugin.streams.Stream;
 import org.joda.time.DateTime;
 import org.junit.Before;
-import org.mockito.Matchers;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
+import org.junit.Rule;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import java.util.Map;
 
@@ -39,67 +35,25 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public abstract class AlertConditionTest {
     protected static final String alertConditionTitle = "Alert Condition for Testing";
 
+    @Rule
+    public final MockitoRule mockitoRule = MockitoJUnit.rule();
+    @Mock
     protected Stream stream;
+    @Mock
     protected Searches searches;
-    protected MongoConnection mongoConnection;
-    protected AlertService alertService;
 
-    protected final String STREAM_ID = "STREAMMOCKID";
+    private final String STREAM_ID = "STREAMMOCKID";
     protected final String STREAM_CREATOR = "MOCKUSER";
     protected final String CONDITION_ID = "CONDITIONMOCKID";
 
     @Before
     public void setUp() throws Exception {
-        stream = mock(Stream.class);
         when(stream.getId()).thenReturn(STREAM_ID);
-
-        searches = mock(Searches.class);
-        mongoConnection = mock(MongoConnection.class);
-        // TODO use injection please. this sucks so bad
-        alertService = spy(new AlertServiceImpl(mongoConnection,
-            new FieldValueAlertCondition.Factory() {
-                @Override
-                public FieldValueAlertCondition createAlertCondition(Stream stream,
-                                                                     String id,
-                                                                     DateTime createdAt,
-                                                                     @Assisted("userid") String creatorUserId,
-                                                                     Map<String, Object> parameters,
-                                                                     String title) {
-                    return new FieldValueAlertCondition(searches, stream, id, createdAt, creatorUserId, parameters, title);
-                }
-            },
-            new MessageCountAlertCondition.Factory() {
-                @Override
-                public MessageCountAlertCondition createAlertCondition(Stream stream,
-                                                                       String id,
-                                                                       DateTime createdAt,
-                                                                       @Assisted("userid") String creatorUserId,
-                                                                       Map<String, Object> parameters,
-                                                                       String title) {
-                    return new MessageCountAlertCondition(searches, stream, id, createdAt, creatorUserId, parameters, title);
-                }
-            },
-            new FieldContentValueAlertCondition.Factory() {
-                @Override
-                public FieldContentValueAlertCondition createAlertCondition(Stream stream,
-                                                                            String id,
-                                                                            DateTime createdAt,
-                                                                            @Assisted("userid") String creatorUserId,
-                                                                            Map<String, Object> parameters,
-                                                                            String title) {
-                    return new FieldContentValueAlertCondition(searches, null, stream, id, createdAt, creatorUserId, parameters, title);
-                }
-            }));
-
     }
 
     protected void assertTriggered(AlertCondition alertCondition, AlertCondition.CheckResult result) {
@@ -108,7 +62,6 @@ public abstract class AlertConditionTest {
         assertEquals("AlertCondition of result is not the same we created!", result.getTriggeredCondition(), alertCondition);
         long difference = Tools.nowUTC().getMillis() - result.getTriggeredAt().getMillis();
         assertTrue("AlertCondition should be triggered about now", difference < 1000);
-        assertFalse("Alert was triggered, so we should not be in grace period!", alertService.inGracePeriod(alertCondition));
     }
 
     protected void assertNotTriggered(AlertCondition.CheckResult result) {
@@ -123,22 +76,6 @@ public abstract class AlertConditionTest {
         parameters.put("time", time);
         parameters.put("threshold", threshold);
         return parameters;
-    }
-
-    protected void alertLastTriggered(int seconds) {
-        // turn it around to avoid actually accessing the database
-        doReturn(seconds).when(alertService).triggeredSecondsAgo(STREAM_ID, CONDITION_ID);
-        // override the mocked object if the condition has not triggered, test code expects null not a mock
-        doAnswer(new Answer() {
-            @Override
-            public AlertCondition.CheckResult answer(InvocationOnMock invocation) throws Throwable {
-                final AlertCondition.CheckResult result = (AlertCondition.CheckResult) invocation.callRealMethod();
-                if (result.isTriggered()) {
-                    return result;
-                }
-                return new AbstractAlertCondition.CheckResult(false, null, result.getResultDescription(), result.getTriggeredAt(), result.getMatchingMessages());
-            }
-        }).when(alertService).triggered(Matchers.<AlertCondition>anyObject());
     }
 
     protected <T extends AbstractAlertCondition> T getTestInstance(Class<T> klazz, Map<String, Object> parameters, String title) {

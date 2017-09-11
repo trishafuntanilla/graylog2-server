@@ -1,5 +1,6 @@
-import React, {PropTypes} from 'react';
-import {Row, Col} from 'react-bootstrap';
+import PropTypes from 'prop-types';
+import React from 'react';
+import { Row, Col } from 'react-bootstrap';
 
 const AppWithoutSearchBar = React.createClass({
   propTypes: {

@@ -16,7 +16,6 @@
  */
 package org.graylog2.inputs.syslog.tcp;
 
-import com.google.common.base.Charsets;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.ChannelHandlerContext;
@@ -26,21 +25,26 @@ import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.handler.codec.frame.DelimiterBasedFrameDecoder;
 import org.jboss.netty.handler.codec.frame.Delimiters;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
 public class SyslogTCPFramingRouterHandlerTest {
+    @Rule
+    public final MockitoRule mockitoRule = MockitoJUnit.rule();
+
     private ChannelUpstreamHandler handler;
 
     @Mock
@@ -60,7 +64,7 @@ public class SyslogTCPFramingRouterHandlerTest {
 
     @Test
     public void testMessageReceivedOctetFrame() throws Exception {
-        final ChannelBuffer buf = ChannelBuffers.copiedBuffer("123 <45>", Charsets.UTF_8);
+        final ChannelBuffer buf = ChannelBuffers.copiedBuffer("123 <45>", StandardCharsets.UTF_8);
 
         when(event.getMessage()).thenReturn(buf);
 
@@ -73,12 +77,12 @@ public class SyslogTCPFramingRouterHandlerTest {
         verify(context, times(3)).sendUpstream(event);
 
         // Make sure the buffer does not get mutated.
-        assertEquals(buf.toString(Charsets.UTF_8), "123 <45>");
+        assertEquals(buf.toString(StandardCharsets.UTF_8), "123 <45>");
     }
 
     @Test
     public void testMessageReceivedDelimiterFrame() throws Exception {
-        final ChannelBuffer buf = ChannelBuffers.copiedBuffer("<45>", Charsets.UTF_8);
+        final ChannelBuffer buf = ChannelBuffers.copiedBuffer("<45>", StandardCharsets.UTF_8);
 
         when(event.getMessage()).thenReturn(buf);
 
@@ -91,12 +95,12 @@ public class SyslogTCPFramingRouterHandlerTest {
         verify(context, times(3)).sendUpstream(event);
 
         // Make sure the buffer does not get mutated.
-        assertEquals(buf.toString(Charsets.UTF_8), "<45>");
+        assertEquals(buf.toString(StandardCharsets.UTF_8), "<45>");
     }
 
     @Test
     public void testMessageReceivedWithEmptyBuffer() throws Exception {
-        final ChannelBuffer buf = ChannelBuffers.copiedBuffer("", Charsets.UTF_8);
+        final ChannelBuffer buf = ChannelBuffers.copiedBuffer("", StandardCharsets.UTF_8);
 
         when(event.getMessage()).thenReturn(buf);
 

@@ -18,13 +18,13 @@ package org.graylog2.plugin.configuration.fields;
 
 import com.google.common.collect.Maps;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-/**
- * @author Lennart Koopmann <lennart@torch.sh>
- */
 public class DropdownField extends AbstractConfigurationField {
 
     public static final String FIELD_TYPE = "dropdown";
@@ -72,6 +72,10 @@ public class DropdownField extends AbstractConfigurationField {
             }
 
             return units;
+        }
+
+        public static Map<String, String> valueMapFromEnum(Class<? extends Enum> enumClass, Function<Enum, String> valueMapping) {
+            return Arrays.stream(enumClass.getEnumConstants()).collect(Collectors.toMap(Enum::toString, valueMapping));
         }
 
     }

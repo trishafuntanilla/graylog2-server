@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import React from 'react';
 import { ButtonGroup, DropdownButton, MenuItem } from 'react-bootstrap';
 
@@ -9,22 +10,33 @@ import StoreProvider from 'injection/StoreProvider';
 const DeflectorStore = StoreProvider.getStore('Deflector'); // eslint-disable-line no-unused-vars
 
 const IndicesMaintenanceDropdown = React.createClass({
+  propTypes: {
+    indexSetId: PropTypes.string.isRequired,
+    indexSet: PropTypes.object,
+  },
+
   _onRecalculateIndexRange() {
-    if (window.confirm('This will trigger a background system job. Go on?')) {
-      IndexRangesActions.recalculate();
+    if (window.confirm('This will recalculate index ranges for this index set using a background system job. Do you want to proceed?')) {
+      IndexRangesActions.recalculate(this.props.indexSetId);
     }
   },
   _onCycleDeflector() {
-    if (window.confirm('Really manually cycle deflector? Follow the documentation link on this page to learn more.')) {
-      DeflectorActions.cycle();
+    if (window.confirm('This will manually cycle the current active write index on this index set. Do you want to proceed?')) {
+      DeflectorActions.cycle(this.props.indexSetId).then(() => {
+        DeflectorActions.list(this.props.indexSetId);
+      });
     }
   },
   render() {
+    let cycleButton;
+    if (this.props.indexSet && this.props.indexSet.writable) {
+      cycleButton = <MenuItem eventKey="2" onClick={this._onCycleDeflector}>Rotate active write index</MenuItem>;
+    }
     return (
       <ButtonGroup>
-        <DropdownButton bsStyle="info" bsSize="lg" title="Maintenance" id="indices-maintenance-actions" pullRight>
+        <DropdownButton bsStyle="info" title="Maintenance" id="indices-maintenance-actions" pullRight>
           <MenuItem eventKey="1" onClick={this._onRecalculateIndexRange}>Recalculate index ranges</MenuItem>
-          <MenuItem eventKey="2" onClick={this._onCycleDeflector}>Manually cycle deflector</MenuItem>
+          {cycleButton}
         </DropdownButton>
       </ButtonGroup>
     );

@@ -16,13 +16,14 @@
  */
 package org.graylog2.inputs.syslog.tcp;
 
-import com.google.common.base.Charsets;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.handler.codec.embedder.CodecEmbedderException;
 import org.jboss.netty.handler.codec.embedder.DecoderEmbedder;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,46 +40,46 @@ public class SyslogOctetCountFrameDecoderTest {
 
     @Test
     public void testDecode() throws Exception {
-        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("123 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n", Charsets.UTF_8);
-        final ChannelBuffer buf2 = ChannelBuffers.copiedBuffer("186 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"2\"] Syslog connection established; fd='9', server='AF_INET(172.17.42.1:6666)', local='AF_INET(0.0.0.0:0)'\n", Charsets.UTF_8);
+        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("123 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n", StandardCharsets.UTF_8);
+        final ChannelBuffer buf2 = ChannelBuffers.copiedBuffer("186 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"2\"] Syslog connection established; fd='9', server='AF_INET(172.17.42.1:6666)', local='AF_INET(0.0.0.0:0)'\n", StandardCharsets.UTF_8);
         final ChannelBuffer buf3 = ChannelBuffers.wrappedBuffer(buf1, buf2, buf1);
 
         assertTrue(embedder.offer(buf1));
         assertTrue(embedder.offer(buf2));
         assertTrue(embedder.offer(buf3));
 
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"2\"] Syslog connection established; fd='9', server='AF_INET(172.17.42.1:6666)', local='AF_INET(0.0.0.0:0)'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"2\"] Syslog connection established; fd='9', server='AF_INET(172.17.42.1:6666)', local='AF_INET(0.0.0.0:0)'\n");
 
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"2\"] Syslog connection established; fd='9', server='AF_INET(172.17.42.1:6666)', local='AF_INET(0.0.0.0:0)'\n");
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"2\"] Syslog connection established; fd='9', server='AF_INET(172.17.42.1:6666)', local='AF_INET(0.0.0.0:0)'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
 
         assertNull(embedder.poll());
     }
 
     @Test
     public void testIncompleteFrameLengthValue() throws Exception {
-        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("12", Charsets.UTF_8);
-        final ChannelBuffer buf2 = ChannelBuffers.copiedBuffer("3 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n", Charsets.UTF_8);
+        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("12", StandardCharsets.UTF_8);
+        final ChannelBuffer buf2 = ChannelBuffers.copiedBuffer("3 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n", StandardCharsets.UTF_8);
 
         assertFalse(embedder.offer(buf1));
         assertNull(embedder.poll());
 
         assertTrue(embedder.offer(buf2));
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
     }
 
     @Test
     public void testIncompleteFrames() throws Exception {
-        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("123 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - ", Charsets.UTF_8);
-        final ChannelBuffer buf2 = ChannelBuffers.copiedBuffer("[meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n", Charsets.UTF_8);
+        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("123 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - ", StandardCharsets.UTF_8);
+        final ChannelBuffer buf2 = ChannelBuffers.copiedBuffer("[meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n", StandardCharsets.UTF_8);
 
         assertFalse(embedder.offer(buf1));
         assertNull(embedder.poll());
 
         assertTrue(embedder.offer(buf2));
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
     }
 
     @Test
@@ -90,23 +91,45 @@ public class SyslogOctetCountFrameDecoderTest {
          * The SyslogOctetCountFrameDecoder was handling this wrong in previous versions and tried to read more from
          * the buffer than there was available after the frame size value bytes have been skipped.
          */
-        final byte[] bytes = "123 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.".getBytes();
+        final byte[] bytes = "123 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.".getBytes(StandardCharsets.UTF_8);
         final ChannelBuffer buf = ChannelBuffers.dynamicBuffer(bytes.length);
         buf.writeBytes(bytes);
 
         assertFalse(embedder.offer(buf));
         assertNull(embedder.poll());
 
-        buf.writeBytes("3'\n".getBytes());
+        buf.writeBytes("3'\n".getBytes(StandardCharsets.UTF_8));
 
         assertTrue(embedder.offer(buf));
-        assertEquals(embedder.poll().toString(Charsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - [meta sequenceId=\"1\"] syslog-ng starting up; version='3.5.3'\n");
     }
 
     @Test(expected = CodecEmbedderException.class)
     public void testBrokenFrames() throws Exception {
-        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - ", Charsets.UTF_8);
+        final ChannelBuffer buf1 = ChannelBuffers.copiedBuffer("1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - ", StandardCharsets.UTF_8);
 
         embedder.offer(buf1);
+    }
+
+    @Test
+    public void testDecodeSupportsMessagesLongerThan1024Bytes() throws Exception {
+        // All transport receiver
+        // implementations SHOULD be able to accept messages of up to and
+        // including 2048 octets in length.  Transport receivers MAY receive
+        // messages larger than 2048 octets in length.
+        // -- https://tools.ietf.org/html/rfc5424#section-6.1
+        final byte[] bytes = new byte[2048];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) ('A' + (i % 26));
+        }
+        final String longString = new String(bytes, StandardCharsets.UTF_8);
+        final ChannelBuffer buffer = ChannelBuffers.copiedBuffer("2111 <45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - " + longString + "\n", StandardCharsets.UTF_8);
+
+        assertTrue(embedder.offer(buffer));
+        embedder.finish();
+
+        assertEquals(embedder.poll().toString(StandardCharsets.UTF_8), "<45>1 2014-10-21T10:21:09+00:00 c4dc57ba1ebb syslog-ng 7120 - " + longString + "\n");
+
+        assertNull(embedder.poll());
     }
 }

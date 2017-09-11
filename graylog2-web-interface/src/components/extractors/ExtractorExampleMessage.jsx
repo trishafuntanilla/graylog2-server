@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import MessageLoader from './MessageLoader';
 
 const ExtractorExampleMessage = React.createClass({
@@ -12,7 +13,7 @@ const ExtractorExampleMessage = React.createClass({
     this.props.onExampleLoad(newExample);
   },
   render() {
-    const originalMessage = <span id="xtrc-original-example" style={{display: 'none'}}>{this.props.example}</span>;
+    const originalMessage = <span id="xtrc-original-example" style={{ display: 'none' }}>{this.props.example}</span>;
     let messagePreview;
 
     if (this.props.example) {
@@ -34,7 +35,7 @@ const ExtractorExampleMessage = React.createClass({
       <div>
         {originalMessage}
         {messagePreview}
-        <MessageLoader onMessageLoaded={this._onExampleLoad}/>
+        <MessageLoader onMessageLoaded={this._onExampleLoad} />
       </div>
     );
   },

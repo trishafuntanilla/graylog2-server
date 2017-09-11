@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 
 const SourceTitle = React.createClass({
   propTypes: {
@@ -15,9 +16,9 @@ const SourceTitle = React.createClass({
     return (
       <h3 className="sources-title">
         {this.props.children}
-        <span style={{marginLeft: 10}}>
-            <button id={this.props.resetFilterId} className={'btn btn-info btn-xs ' + this.props.className}
-                    onClick={this.props.resetFilters} title="Reset filter" style={{display: 'none'}}>
+        <span style={{ marginLeft: 10 }}>
+          <button id={this.props.resetFilterId} className={`btn btn-info btn-xs ${this.props.className}`}
+                    onClick={this.props.resetFilters} title="Reset filter" style={{ display: 'none' }}>
               Reset
             </button>
         </span>

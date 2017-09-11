@@ -19,6 +19,7 @@ package org.graylog2.inputs.random.generators;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.primitives.Ints;
 import org.graylog2.plugin.Message;
 import org.graylog2.plugin.Tools;
 import org.joda.time.DateTime;
@@ -74,7 +75,7 @@ public class FakeHttpRawMessageGenerator {
         if (result < 0) {
             return 1;
         } else {
-            return Math.round((int) result);
+            return Ints.saturatedCast(Math.round(result));
         }
     }
 
@@ -85,7 +86,7 @@ public class FakeHttpRawMessageGenerator {
         final int successProb = RANDOM.nextInt(100);
 
         generatorState.source = source;
-        generatorState.isSuccessful = (successProb < 98);
+        generatorState.isSuccessful = successProb < 98;
         generatorState.isTimeout = RANDOM.nextInt(5) == 1;
         generatorState.isSlowRequest = RANDOM.nextInt(500) == 1;
         generatorState.userId = ((UserId) getWeighted(USER_IDS)).getId();

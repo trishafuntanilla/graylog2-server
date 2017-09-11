@@ -24,11 +24,11 @@ import org.graylog2.plugin.outputs.MessageOutputConfigurationException;
 import org.graylog2.plugin.streams.Output;
 import org.graylog2.plugin.streams.Stream;
 import org.graylog2.streams.OutputService;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import java.util.Set;
 
@@ -36,15 +36,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
 public class OutputRegistryTest {
     private static final long FAULT_COUNT_THRESHOLD = 5;
     private static final long FAULT_PENALTY_SECONDS = 30;
+
+    @Rule
+    public final MockitoRule mockitoRule = MockitoJUnit.rule();
 
     @Mock
     private MessageOutput messageOutput;
@@ -54,14 +56,6 @@ public class OutputRegistryTest {
     private Output output;
     @Mock
     private OutputService outputService;
-    @Mock
-    private org.graylog2.Configuration configuration;
-
-    @Before
-    public void setUp() throws Exception {
-        when(configuration.getOutputFaultCountThreshold()).thenReturn(FAULT_COUNT_THRESHOLD);
-        when(configuration.getOutputFaultPenaltySeconds()).thenReturn(FAULT_PENALTY_SECONDS);
-    }
 
     @Test
     public void testMessageOutputsIncludesDefault() {
@@ -73,12 +67,9 @@ public class OutputRegistryTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testThrowExceptionForUnknownOutputType() throws MessageOutputConfigurationException {
-        when(messageOutputFactory.fromStreamOutput(eq(output), any(Stream.class), any(Configuration.class))).thenReturn(null);
         OutputRegistry registry = new OutputRegistry(null, null, messageOutputFactory, null, null, FAULT_COUNT_THRESHOLD, FAULT_PENALTY_SECONDS);
 
         registry.launchOutput(output, null);
-
-        assertEquals(registry.getRunningMessageOutputs().size(), 0);
     }
 
     @Test

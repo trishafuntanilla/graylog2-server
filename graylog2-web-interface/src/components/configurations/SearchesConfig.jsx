@@ -1,6 +1,7 @@
+import PropTypes from 'prop-types';
 import React from 'react';
-import { Input, Button, Row, Col } from 'react-bootstrap';
-import BootstrapModalForm from 'components/bootstrap/BootstrapModalForm';
+import { Button, Row, Col } from 'react-bootstrap';
+import { BootstrapModalForm, Input } from 'components/bootstrap';
 import { IfPermitted, ISODurationInput } from 'components/common';
 import ObjectUtils from 'util/ObjectUtils';
 
@@ -12,8 +13,8 @@ import TimeRangeOptionsSummary from './TimeRangeOptionsSummary';
 
 const SearchesConfig = React.createClass({
   propTypes: {
-    config: React.PropTypes.object.isRequired,
-    updateConfig: React.PropTypes.func.isRequired,
+    config: PropTypes.object.isRequired,
+    updateConfig: PropTypes.func.isRequired,
   },
 
   getInitialState() {
@@ -112,8 +113,8 @@ const SearchesConfig = React.createClass({
     if (this.state.surroundingFilterFields) {
       update.surrounding_filter_fields = this.state.surroundingFilterFields
         .split(',')
-        .map((f) => f.trim())
-        .filter((f) => f.length > 0);
+        .map(f => f.trim())
+        .filter(f => f.length > 0);
 
       this.setState({ surroundingFilterFields: undefined });
     }
@@ -199,7 +200,7 @@ const SearchesConfig = React.createClass({
             <Input type="checkbox" label="Enable query limit"
                    name="enabled"
                    checked={this._isEnabled()}
-                   onChange={this._onChecked}/>
+                   onChange={this._onChecked} />
             {this._isEnabled() &&
             <ISODurationInput duration={config.query_time_range_limit}
                               update={this._onUpdate('query_time_range_limit')}
@@ -215,7 +216,7 @@ const SearchesConfig = React.createClass({
                                   title="Relative Timerange Options"
                                   help={<span>Configure the available options for the <strong>relative</strong> time range selector as <strong>ISO8601 duration</strong></span>} />
 
-            <TimeRangeOptionsForm options={ this.state.surroundingTimeRangeOptionsUpdate || this._buildTimeRangeOptions(this.state.config.surrounding_timerange_options)}
+            <TimeRangeOptionsForm options={this.state.surroundingTimeRangeOptionsUpdate || this._buildTimeRangeOptions(this.state.config.surrounding_timerange_options)}
                                   update={this._onSurroundingTimeRangeOptionsUpdate}
                                   validator={this.surroundingTimeRangeValidator}
                                   title="Surrounding Timerange Options"

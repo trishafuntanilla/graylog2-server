@@ -16,6 +16,8 @@
  */
 package org.graylog2.bundles;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.mongodb.BasicDBObject;
@@ -25,16 +27,24 @@ import org.graylog2.dashboards.widgets.DashboardWidgetCreator;
 import org.graylog2.database.NotFoundException;
 import org.graylog2.grok.GrokPatternService;
 import org.graylog2.inputs.InputService;
+import org.graylog2.lookup.db.DBCacheService;
+import org.graylog2.lookup.db.DBDataAdapterService;
+import org.graylog2.lookup.db.DBLookupTableService;
+import org.graylog2.lookup.dto.CacheDto;
+import org.graylog2.lookup.dto.DataAdapterDto;
+import org.graylog2.lookup.dto.LookupTableDto;
 import org.graylog2.streams.OutputService;
 import org.graylog2.streams.StreamService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class BundleExporter {
@@ -45,7 +55,11 @@ public class BundleExporter {
     private final OutputService outputService;
     private final DashboardService dashboardService;
     private final DashboardWidgetCreator dashboardWidgetCreator;
+    private final DBLookupTableService dbLookupTableService;
+    private final DBCacheService dbCacheService;
+    private final DBDataAdapterService dbDataAdapterService;
     private final GrokPatternService grokPatternService;
+    private final ObjectMapper objectMapper;
 
     private Set<String> streamSet = new HashSet<>();
 
@@ -55,13 +69,21 @@ public class BundleExporter {
                           final OutputService outputService,
                           final DashboardService dashboardService,
                           final DashboardWidgetCreator dashboardWidgetCreator,
-                          final GrokPatternService grokPatternService) {
+                          final DBLookupTableService dbLookupTableService,
+                          final DBCacheService dbCacheService,
+                          final DBDataAdapterService dbDataAdapterService,
+                          final GrokPatternService grokPatternService,
+                          final ObjectMapper objectMapper) {
         this.inputService = inputService;
         this.streamService = streamService;
         this.outputService = outputService;
         this.dashboardService = dashboardService;
         this.dashboardWidgetCreator = dashboardWidgetCreator;
+        this.dbLookupTableService = dbLookupTableService;
+        this.dbCacheService = dbCacheService;
+        this.dbDataAdapterService = dbDataAdapterService;
         this.grokPatternService = grokPatternService;
+        this.objectMapper = objectMapper;
     }
 
     public ConfigurationBundle export(final ExportBundle exportBundle) {
@@ -74,6 +96,9 @@ public class BundleExporter {
         final Set<Stream> streams = exportStreams(streamSet);
         final Set<GrokPattern> grokPatterns = exportGrokPatterns(exportBundle.getGrokPatterns());
         final Set<Input> inputs = exportInputs(exportBundle.getInputs());
+        final Set<LookupTableBundle> lookupTables = exportLookupTables(exportBundle.getLookupTables());
+        final Set<LookupCacheBundle> lookupCaches = exportLookupCaches(exportBundle.getLookupCaches());
+        final Set<LookupDataAdapterBundle> lookupDataAdapters = exportLookupDataAdapters(exportBundle.getLookupDataAdapters());
 
         configurationBundle.setName(exportBundle.getName());
         configurationBundle.setCategory(exportBundle.getCategory());
@@ -83,8 +108,120 @@ public class BundleExporter {
         configurationBundle.setStreams(streams);
         configurationBundle.setOutputs(outputs);
         configurationBundle.setDashboards(dashboards);
+        configurationBundle.setLookupTables(lookupTables);
+        configurationBundle.setLookupCaches(lookupCaches);
+        configurationBundle.setLookupDataAdapters(lookupDataAdapters);
 
         return configurationBundle;
+    }
+
+    private Set<LookupDataAdapterBundle> exportLookupDataAdapters(Set<String> lookupDataAdapters) {
+        final ImmutableSet.Builder<LookupDataAdapterBundle> builder = ImmutableSet.builder();
+
+        for (String id : lookupDataAdapters) {
+            final LookupDataAdapterBundle bundle = exportLookupDataAdapter(id);
+
+            if (bundle != null) {
+                builder.add(bundle);
+            }
+        }
+        return builder.build();
+    }
+
+    private LookupDataAdapterBundle exportLookupDataAdapter(String id) {
+        final Optional<DataAdapterDto> dtoOptional = dbDataAdapterService.get(id);
+
+        if (!dtoOptional.isPresent()) {
+            return null;
+        }
+
+        final DataAdapterDto dto = dtoOptional.get();
+
+        final LookupDataAdapterBundle bundle = new LookupDataAdapterBundle();
+        bundle.setTitle(dto.title());
+        bundle.setDescription(dto.description());
+        bundle.setName(dto.name());
+        bundle.setConfig(objectMapper.convertValue(dto.config(), new TypeReference<Map<String, Object>>(){}));
+
+        return bundle;
+    }
+
+    private Set<LookupCacheBundle> exportLookupCaches(Set<String> lookupCaches) {
+        final ImmutableSet.Builder<LookupCacheBundle> builder = ImmutableSet.builder();
+
+        for (String id : lookupCaches) {
+            final LookupCacheBundle bundle = exportLookupCache(id);
+
+            if (bundle != null) {
+                builder.add(bundle);
+            }
+        }
+
+        return builder.build();
+    }
+
+    @Nullable
+    private LookupCacheBundle exportLookupCache(String id) {
+        final Optional<CacheDto> dtoOptional = dbCacheService.get(id);
+
+        if (!dtoOptional.isPresent()) {
+            return null;
+        }
+
+        final CacheDto dto = dtoOptional.get();
+
+        final LookupCacheBundle bundle = new LookupCacheBundle();
+        bundle.setTitle(dto.title());
+        bundle.setDescription(dto.description());
+        bundle.setName(dto.name());
+        bundle.setConfig(objectMapper.convertValue(dto.config(), new TypeReference<Map<String, Object>>(){}));
+
+        return bundle;
+    }
+
+    private Set<LookupTableBundle> exportLookupTables(Set<String> lookupTables) {
+        final ImmutableSet.Builder<LookupTableBundle> builder = ImmutableSet.builder();
+
+        for (String id : lookupTables) {
+            final LookupTableBundle bundle = exportLookupTable(id);
+
+            if (bundle != null) {
+                builder.add(bundle);
+            }
+        }
+
+        return builder.build();
+    }
+
+    @Nullable
+    private LookupTableBundle exportLookupTable(final String tableId) {
+        final Optional<LookupTableDto> dtoOptional = dbLookupTableService.get(tableId);
+
+        if (!dtoOptional.isPresent()) {
+            return null;
+        }
+
+        final LookupTableDto dto = dtoOptional.get();
+        final Optional<CacheDto> cacheDtoOptional = dbCacheService.get(dto.cacheId());
+        final Optional<DataAdapterDto> adapterDtoOptional = dbDataAdapterService.get(dto.dataAdapterId());
+
+        if (!cacheDtoOptional.isPresent() || !adapterDtoOptional.isPresent()) {
+            LOG.warn("Skipping bundle export of incomplete lookup table <{}> ({})", dto.name(), dto.id());
+            return null;
+        }
+
+        final LookupTableBundle bundle = new LookupTableBundle();
+        bundle.setTitle(dto.title());
+        bundle.setDescription(dto.description());
+        bundle.setName(dto.name());
+        bundle.setCacheName(cacheDtoOptional.get().name());
+        bundle.setDataAdapterName(adapterDtoOptional.get().name());
+        bundle.setDefaultSingleValue(dto.defaultSingleValue());
+        bundle.setDefaultSingleValueType(dto.defaultSingleValueType());
+        bundle.setDefaultMultiValue(dto.defaultMultiValue());
+        bundle.setDefaultMultiValueType(dto.defaultMultiValueType());
+
+        return bundle;
     }
 
     private Set<GrokPattern> exportGrokPatterns(final Set<String> grokPatterns) {
@@ -109,7 +246,7 @@ public class BundleExporter {
             return null;
         }
 
-        return GrokPattern.create(grokPattern.name, grokPattern.pattern);
+        return GrokPattern.create(grokPattern.name(), grokPattern.pattern());
     }
 
     private Set<Input> exportInputs(final Set<String> inputs) {
@@ -135,6 +272,7 @@ public class BundleExporter {
         }
 
         final Input inputDescription = new Input();
+        inputDescription.setId(input.getId());
         inputDescription.setTitle(input.getTitle());
         inputDescription.setType(input.getType());
         inputDescription.setGlobal(input.isGlobal());
@@ -222,6 +360,7 @@ public class BundleExporter {
         streamDescription.setMatchingType(stream.getMatchingType());
         streamDescription.setOutputs(exportOutputReferences(stream.getOutputs()));
         streamDescription.setStreamRules(exportStreamRules(stream.getStreamRules()));
+        streamDescription.setDefaultStream(stream.isDefaultStream());
 
         return streamDescription;
     }
@@ -325,7 +464,9 @@ public class BundleExporter {
         @SuppressWarnings("unchecked")
         final Map<String, Object> positions = (Map<String, Object>) dashboard.asMap().get("positions");
         if (fields.containsKey(DashboardImpl.EMBEDDED_WIDGETS)) {
-            for (BasicDBObject widgetFields : (List<BasicDBObject>) fields.get(DashboardImpl.EMBEDDED_WIDGETS)) {
+            @SuppressWarnings("unchecked")
+            final List<BasicDBObject> embeddedWidgets = (List<BasicDBObject>) fields.get(DashboardImpl.EMBEDDED_WIDGETS);
+            for (BasicDBObject widgetFields : embeddedWidgets) {
                 org.graylog2.dashboards.widgets.DashboardWidget widget;
                 try {
                     widget = dashboardWidgetCreator.fromPersisted(widgetFields);
@@ -344,24 +485,22 @@ public class BundleExporter {
 
                 // Mark referenced streams for export
                 final Object streamId = widgetConfig.get("stream_id");
-                if (streamId instanceof String) {
-                    if (streamSet.add((String) streamId)) {
-                        LOG.debug("Adding stream {} to export list", streamId);
-                    }
+                if (streamId instanceof String && streamSet.add((String) streamId)) {
+                    LOG.debug("Adding stream {} to export list", streamId);
                 }
 
                 @SuppressWarnings("unchecked")
                 final Map<String, Integer> widgetPosition = (Map<String, Integer>) positions.get(widget.getId());
 
                 if (widgetPosition != null) {
-                    final Integer row = widgetPosition.get("row");
-                    final Integer col = widgetPosition.get("col");
-                    final Integer height = widgetPosition.get("height");
-                    final Integer width = widgetPosition.get("width");
-                    dashboardWidgetDescription.setRow(row == null ? 0 : row);
-                    dashboardWidgetDescription.setCol(col == null ? 0 : col);
-                    dashboardWidgetDescription.setHeight(height == null ? 0 : height);
-                    dashboardWidgetDescription.setWidth(width == null ? 0 : width);
+                    final int row = widgetPosition.getOrDefault("row", 0);
+                    final int col = widgetPosition.getOrDefault("col", 0);
+                    final int height = widgetPosition.getOrDefault("height", 0);
+                    final int width = widgetPosition.getOrDefault("width", 0);
+                    dashboardWidgetDescription.setRow(row);
+                    dashboardWidgetDescription.setCol(col);
+                    dashboardWidgetDescription.setHeight(height);
+                    dashboardWidgetDescription.setWidth(width);
                 } else {
                     LOG.debug("Couldn't find position for widget {} on dashboard {}, using defaults (0, 0, 0, 0).",
                             widget.getId(), dashboard.getTitle());

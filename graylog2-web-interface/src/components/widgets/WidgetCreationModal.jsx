@@ -1,5 +1,6 @@
+import PropTypes from 'prop-types';
 import React from 'react';
-import { Input } from 'react-bootstrap';
+import { Input } from 'components/bootstrap';
 import { PluginStore } from 'graylog-web-plugin/plugin';
 
 import BootstrapModalForm from 'components/bootstrap/BootstrapModalForm';
@@ -10,10 +11,10 @@ import StringUtils from 'util/StringUtils';
 
 const WidgetCreationModal = React.createClass({
   propTypes: {
-    fields: React.PropTypes.array,
-    onConfigurationSaved: React.PropTypes.func.isRequired,
-    onModalHidden: React.PropTypes.func,
-    widgetType: React.PropTypes.string.isRequired,
+    fields: PropTypes.array,
+    onConfigurationSaved: PropTypes.func.isRequired,
+    onModalHidden: PropTypes.func,
+    widgetType: PropTypes.string.isRequired,
   },
 
   getInitialState() {
@@ -41,7 +42,7 @@ const WidgetCreationModal = React.createClass({
 
     const configKeys = Object.keys(this.state.config);
     if (configKeys.length === 0) {
-      this.setState({config: this.refs.pluginConfiguration.getInitialConfiguration()});
+      this.setState({ config: this.refs.pluginConfiguration.getInitialConfiguration() });
     }
   },
 
@@ -75,7 +76,7 @@ const WidgetCreationModal = React.createClass({
   _setConfigurationSetting(key, value) {
     const newConfig = ObjectUtils.clone(this.state.config);
     newConfig[key] = value;
-    this.setState({config: newConfig});
+    this.setState({ config: newConfig });
   },
 
   _bindConfigurationValue(event) {
@@ -129,7 +130,7 @@ const WidgetCreationModal = React.createClass({
                  defaultValue={this.state.title}
                  onChange={this._bindValue}
                  help="Type a name that describes your widget."
-                 autoFocus/>
+                 autoFocus />
           {this._getSpecificWidgetInputs()}
         </fieldset>
       </BootstrapModalForm>

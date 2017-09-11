@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import ReactDOM from 'react-dom';
 import { Page } from 'components/common';
 
@@ -8,8 +9,9 @@ import StoreProvider from 'injection/StoreProvider';
 const SearchStore = StoreProvider.getStore('Search');
 const UniversalSearchStore = StoreProvider.getStore('UniversalSearch');
 
-require('!script!../../../public/javascripts/jquery-2.1.1.min.js');
-require('!script!../../../public/javascripts/bootstrap.min.js');
+import $ from 'jquery';
+global.jQuery = $;
+require('bootstrap/js/affix');
 
 const MessageTablePaginator = React.createClass({
   propTypes: {
@@ -52,7 +54,7 @@ const MessageTablePaginator = React.createClass({
   _setPaginationWidth() {
     if (this.props.position === 'bottom') {
       this.eventsThrottler.throttle(() => {
-        this.setState({paginationWidth: ReactDOM.findDOMNode(this.refs.paginatorContainer).clientWidth});
+        this.setState({ paginationWidth: ReactDOM.findDOMNode(this.refs.paginatorContainer).clientWidth });
       });
     }
   },
@@ -87,13 +89,13 @@ const MessageTablePaginator = React.createClass({
     const pages = [];
 
     pages.push(<Page key="previous" href="#" page="Previous" isDisabled={this.props.currentPage === 1}
-                     onPageChanged={this._onPageChanged}/>);
+                     onPageChanged={this._onPageChanged} />);
     for (let i = this._minPage(); i <= this._maxPage(); i++) {
       pages.push(<Page key={`page${i}`} href="#" page={i} isActive={i === this.props.currentPage}
-                       onPageChanged={this._onPageChanged}/>);
+                       onPageChanged={this._onPageChanged} />);
     }
     pages.push(<Page key="next" href="#" page="Next" isDisabled={this.props.currentPage >= this._maxPage()}
-                     onPageChanged={this._onPageChanged}/>);
+                     onPageChanged={this._onPageChanged} />);
 
     const pagination = (
       <ul className="pagination">
@@ -107,7 +109,7 @@ const MessageTablePaginator = React.createClass({
         <div ref="paginatorAffix">
           {this.props.children}
           <nav className="text-center"
-               style={{width: this.state.paginationWidth + 20}}>
+               style={{ width: this.state.paginationWidth + 20 }}>
             {pagination}
           </nav>
         </div>

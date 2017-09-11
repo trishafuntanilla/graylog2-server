@@ -1,10 +1,9 @@
 import request from 'superagent-bluebird-promise';
+import BluebirdPromise from 'bluebird';
 
 import StoreProvider from 'injection/StoreProvider';
 
 import ActionsProvider from 'injection/ActionsProvider';
-const SessionActions = ActionsProvider.getActions('Session');
-const ServerAvailabilityActions = ActionsProvider.getActions('ServerAvailability');
 
 import Routes from 'routing/Routes';
 import history from 'util/History';
@@ -57,6 +56,7 @@ export class Builder {
       .accept('json')
       .then((resp) => {
         if (resp.ok) {
+          const ServerAvailabilityActions = ActionsProvider.getActions('ServerAvailability');
           ServerAvailabilityActions.reportSuccess();
           return resp.body;
         }
@@ -65,6 +65,7 @@ export class Builder {
       }, (error) => {
         const SessionStore = StoreProvider.getStore('Session');
         if (SessionStore.isLoggedIn() && error.status === 401) {
+          const SessionActions = ActionsProvider.getActions('Session');
           SessionActions.logout(SessionStore.getSessionId());
         }
 
@@ -74,6 +75,7 @@ export class Builder {
         }
 
         if (error.originalError && !error.originalError.status) {
+          const ServerAvailabilityActions = ActionsProvider.getActions('ServerAvailability');
           ServerAvailabilityActions.reportError(error);
         }
 
@@ -83,9 +85,66 @@ export class Builder {
     return this;
   }
 
+  plaintext(body) {
+    this.request = this.request
+      .send(body)
+      .type('text/plain')
+      .accept('json')
+      .then((resp) => {
+        if (resp.ok) {
+          const ServerAvailabilityActions = ActionsProvider.getActions('ServerAvailability');
+          ServerAvailabilityActions.reportSuccess();
+          return resp.body;
+        }
+
+        throw new FetchError(resp.statusText, resp);
+      }, (error) => {
+        const SessionStore = StoreProvider.getStore('Session');
+        if (SessionStore.isLoggedIn() && error.status === 401) {
+          const SessionActions = ActionsProvider.getActions('Session');
+          SessionActions.logout(SessionStore.getSessionId());
+        }
+
+        // Redirect to the start page if a user is logged in but not allowed to access a certain HTTP API.
+        if (SessionStore.isLoggedIn() && error.status === 403) {
+          history.replaceState(null, Routes.STARTPAGE);
+        }
+
+        if (error.originalError && !error.originalError.status) {
+          const ServerAvailabilityActions = ActionsProvider.getActions('ServerAvailability');
+          ServerAvailabilityActions.reportError(error);
+        }
+
+        throw new FetchError(error.statusText, error);
+      });
+
+    return this;
+  }
+
+  noSessionExtension() {
+    this.request = this.request.set('X-Graylog-No-Session-Extension', 'true');
+
+    return this;
+  }
+
   build() {
     return this.request;
   }
+}
+
+function queuePromiseIfNotLoggedin(promise) {
+  const SessionStore = StoreProvider.getStore('Session');
+
+  if (!SessionStore.isLoggedIn()) {
+    return () => new BluebirdPromise((resolve, reject) => {
+      const SessionActions = ActionsProvider.getActions('Session');
+      SessionActions.login.completed.listen(() => {
+        promise().then(resolve, reject);
+      });
+    });
+  }
+
+  return promise;
 }
 
 export default function fetch(method, url, body) {
@@ -94,14 +153,24 @@ export default function fetch(method, url, body) {
     .json(body)
     .build();
 
-  const SessionStore = StoreProvider.getStore('Session');
+  return queuePromiseIfNotLoggedin(promise)();
+}
 
-  if (!SessionStore.isLoggedIn()) {
-    return new Promise((resolve, reject) => {
-      SessionActions.login.completed.listen(() => {
-        promise().then(resolve, reject);
-      });
-    });
-  }
-  return promise();
+export function fetchPlainText(method, url, body) {
+  const promise = () => new Builder(method, url)
+    .authenticated()
+    .plaintext(body)
+    .build();
+
+  return queuePromiseIfNotLoggedin(promise)();
+}
+
+export function fetchPeriodically(method, url, body) {
+  const promise = () => new Builder(method, url)
+    .authenticated()
+    .noSessionExtension()
+    .json(body)
+    .build();
+
+  return queuePromiseIfNotLoggedin(promise)();
 }

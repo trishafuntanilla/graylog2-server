@@ -35,6 +35,7 @@ public abstract class AbsoluteRange extends TimeRange {
     public static final String ABSOLUTE = "absolute";
 
     @JsonProperty
+    @Override
     public abstract String type();
 
     @JsonProperty
@@ -75,9 +76,9 @@ public abstract class AbsoluteRange extends TimeRange {
     @Override
     public Map<String, Object> getPersistedConfig() {
         return ImmutableMap.<String, Object>of(
-                "type", ABSOLUTE,
-                "from", getFrom(),
-                "to", getTo());
+            "type", ABSOLUTE,
+            "from", getFrom(),
+            "to", getTo());
     }
 
     @AutoValue.Builder
@@ -95,7 +96,7 @@ public abstract class AbsoluteRange extends TimeRange {
             try {
                 return to(parseDateTime(to));
             } catch (IllegalArgumentException e) {
-                throw new InvalidRangeParametersException();
+                throw new InvalidRangeParametersException("Invalid end of range: " + to, e);
             }
         }
 
@@ -104,7 +105,7 @@ public abstract class AbsoluteRange extends TimeRange {
             try {
                 return from(parseDateTime(from));
             } catch (IllegalArgumentException e) {
-                throw new InvalidRangeParametersException();
+                throw new InvalidRangeParametersException("Invalid start of range: " + from, e);
             }
         }
 

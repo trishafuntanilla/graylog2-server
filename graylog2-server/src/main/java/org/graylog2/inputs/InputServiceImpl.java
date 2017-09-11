@@ -34,6 +34,9 @@ import org.graylog2.database.PersistedServiceImpl;
 import org.graylog2.events.ClusterEventBus;
 import org.graylog2.inputs.converters.ConverterFactory;
 import org.graylog2.inputs.extractors.ExtractorFactory;
+import org.graylog2.inputs.extractors.events.ExtractorCreated;
+import org.graylog2.inputs.extractors.events.ExtractorDeleted;
+import org.graylog2.inputs.extractors.events.ExtractorUpdated;
 import org.graylog2.plugin.configuration.Configuration;
 import org.graylog2.plugin.database.EmbeddedPersistable;
 import org.graylog2.plugin.database.Persisted;
@@ -43,6 +46,7 @@ import org.graylog2.plugin.inputs.Extractor;
 import org.graylog2.plugin.inputs.MessageInput;
 import org.graylog2.rest.models.system.inputs.responses.InputCreated;
 import org.graylog2.rest.models.system.inputs.responses.InputDeleted;
+import org.graylog2.rest.models.system.inputs.responses.InputUpdated;
 import org.graylog2.shared.inputs.MessageInputFactory;
 import org.graylog2.shared.inputs.NoSuchInputTypeException;
 import org.slf4j.Logger;
@@ -59,16 +63,19 @@ public class InputServiceImpl extends PersistedServiceImpl implements InputServi
     private static final Logger LOG = LoggerFactory.getLogger(InputServiceImpl.class);
 
     private final ExtractorFactory extractorFactory;
+    private final ConverterFactory converterFactory;
     private final MessageInputFactory messageInputFactory;
     private final EventBus clusterEventBus;
 
     @Inject
     public InputServiceImpl(MongoConnection mongoConnection,
                             ExtractorFactory extractorFactory,
+                            ConverterFactory converterFactory,
                             MessageInputFactory messageInputFactory,
                             ClusterEventBus clusterEventBus) {
         super(mongoConnection);
         this.extractorFactory = extractorFactory;
+        this.converterFactory = converterFactory;
         this.messageInputFactory = messageInputFactory;
         this.clusterEventBus = clusterEventBus;
     }
@@ -105,6 +112,15 @@ public class InputServiceImpl extends PersistedServiceImpl implements InputServi
         final String resultId = super.save(model);
         if (resultId != null && !resultId.isEmpty()) {
             publishChange(InputCreated.create(resultId));
+        }
+        return resultId;
+    }
+
+    @Override
+    public String update(Input model) throws ValidationException {
+        final String resultId = super.save(model);
+        if (resultId != null && !resultId.isEmpty()) {
+            publishChange(InputUpdated.create(resultId));
         }
         return resultId;
     }
@@ -175,7 +191,7 @@ public class InputServiceImpl extends PersistedServiceImpl implements InputServi
 
         final DBObject o = findOne(InputImpl.class, new BasicDBObject("$and", query));
         if (o == null) {
-            throw new NotFoundException();
+            throw new NotFoundException("Couldn't find input " + id + " on Graylog node " + nodeId);
         } else {
             return new InputImpl((ObjectId) o.get("_id"), o.toMap());
         }
@@ -184,6 +200,14 @@ public class InputServiceImpl extends PersistedServiceImpl implements InputServi
     @Override
     public void addExtractor(Input input, Extractor extractor) throws ValidationException {
         embed(input, InputImpl.EMBEDDED_EXTRACTORS, extractor);
+        publishChange(ExtractorCreated.create(input.getId(), extractor.getId()));
+    }
+
+    @Override
+    public void updateExtractor(Input input, Extractor extractor) throws ValidationException {
+        removeEmbedded(input, InputImpl.EMBEDDED_EXTRACTORS, extractor.getId());
+        embed(input, InputImpl.EMBEDDED_EXTRACTORS, extractor);
+        publishChange(ExtractorUpdated.create(input.getId(), extractor.getId()));
     }
 
     @Override
@@ -198,6 +222,7 @@ public class InputServiceImpl extends PersistedServiceImpl implements InputServi
         };
 
         embed(input, InputImpl.EMBEDDED_STATIC_FIELDS, obj);
+        publishChange(InputUpdated.create(input.getId()));
     }
 
     @Override
@@ -292,7 +317,7 @@ public class InputServiceImpl extends PersistedServiceImpl implements InputServi
             final DBObject c = (BasicDBObject) element;
 
             try {
-                listBuilder.add(ConverterFactory.factory(
+                listBuilder.add(converterFactory.create(
                         Converter.Type.valueOf(((String) c.get(Extractor.FIELD_CONVERTER_TYPE)).toUpperCase(Locale.ENGLISH)),
                         (Map<String, Object>) c.get(Extractor.FIELD_CONVERTER_CONFIG)
                 ));
@@ -309,11 +334,13 @@ public class InputServiceImpl extends PersistedServiceImpl implements InputServi
     @Override
     public void removeExtractor(Input input, String extractorId) {
         removeEmbedded(input, InputImpl.EMBEDDED_EXTRACTORS, extractorId);
+        publishChange(ExtractorDeleted.create(input.getId(), extractorId));
     }
 
     @Override
     public void removeStaticField(Input input, String key) {
         removeEmbedded(input, InputImpl.FIELD_STATIC_FIELD_KEY, InputImpl.EMBEDDED_STATIC_FIELDS, key);
+        publishChange(InputUpdated.create(input.getId()));
     }
 
     @Override

@@ -13,14 +13,11 @@ const IndicesStore = Reflux.createStore({
   closedIndices: undefined,
   registrations: {},
 
-  init() {
-    IndicesActions.list();
-  },
   getInitialState() {
     return { indices: this.indices, closedIndices: this.closedIndices };
   },
-  list() {
-    const urlList = URLUtils.qualifyUrl(ApiRoutes.IndicesApiController.list().url);
+  list(indexSetId) {
+    const urlList = URLUtils.qualifyUrl(ApiRoutes.IndicesApiController.list(indexSetId).url);
     const promise = fetch('GET', urlList).then((response) => {
       this.indices = response.all.indices;
       this.closedIndices = response.closed.indices;
@@ -29,6 +26,17 @@ const IndicesStore = Reflux.createStore({
     });
 
     IndicesActions.list.promise(promise);
+  },
+  listAll() {
+    const urlList = URLUtils.qualifyUrl(ApiRoutes.IndicesApiController.listAll().url);
+    const promise = fetch('GET', urlList).then((response) => {
+      this.indices = response.all.indices;
+      this.closedIndices = response.closed.indices;
+      this.trigger({ indices: this.indices, closedIndices: this.closedIndices });
+      return { indices: this.indices, closedIndices: this.closedIndices };
+    });
+
+    IndicesActions.listAll.promise(promise);
   },
   multiple() {
     const indexNames = Object.keys(this.registrations);
@@ -57,26 +65,17 @@ const IndicesStore = Reflux.createStore({
 
     IndicesActions.close.promise(promise);
   },
-  closeCompleted() {
-    IndicesActions.list();
-  },
   delete(indexName) {
     const url = URLUtils.qualifyUrl(ApiRoutes.IndicesApiController.delete(indexName).url);
     const promise = fetch('DELETE', url);
 
     IndicesActions.delete.promise(promise);
   },
-  deleteCompleted() {
-    IndicesActions.list();
-  },
   reopen(indexName) {
     const url = URLUtils.qualifyUrl(ApiRoutes.IndicesApiController.reopen(indexName).url);
     const promise = fetch('POST', url);
 
     IndicesActions.reopen.promise(promise);
-  },
-  reopenCompleted() {
-    IndicesActions.list();
   },
   subscribe(indexName) {
     this.registrations[indexName] = this.registrations[indexName] ? this.registrations[indexName] + 1 : 1;

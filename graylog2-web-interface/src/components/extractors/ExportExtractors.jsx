@@ -1,8 +1,10 @@
-import React, {PropTypes} from 'react';
+import PropTypes from 'prop-types';
+import React from 'react';
 import Reflux from 'reflux';
-import {Row, Col, Input} from 'react-bootstrap';
+import { Row, Col } from 'react-bootstrap';
 
-import {ClipboardButton, Spinner} from 'components/common';
+import { Input } from 'components/bootstrap';
+import { ClipboardButton, Spinner } from 'components/common';
 import Version from 'util/Version';
 
 import ActionsProvider from 'injection/ActionsProvider';
@@ -24,7 +26,7 @@ const ExportExtractors = React.createClass({
   },
   render() {
     if (this._isLoading()) {
-      return <Spinner/>;
+      return <Spinner />;
     }
 
     const extractorsExportObject = {
@@ -64,12 +66,12 @@ const ExportExtractors = React.createClass({
               <h2>Extractors JSON</h2>
             </Col>
             <Col md={4}>
-              <ClipboardButton title="Copy extractors" className="pull-right" target="#extractor-export-textarea"/>
+              <ClipboardButton title="Copy extractors" className="pull-right" target="#extractor-export-textarea" />
             </Col>
           </Row>
           <Row>
             <Col md={12}>
-              <Input type="textarea" id="extractor-export-textarea" rows={30} defaultValue={formattedJSON}/>
+              <Input type="textarea" id="extractor-export-textarea" rows={30} defaultValue={formattedJSON} />
             </Col>
           </Row>
         </Col>

@@ -19,13 +19,9 @@ package org.graylog2.rest.resources.search;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.queryparser.classic.Token;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.glassfish.jersey.server.ChunkedOutput;
-import org.graylog2.indexer.InvalidRangeFormatException;
+import org.graylog2.decorators.DecoratorProcessor;
+import org.graylog2.indexer.FieldTypeException;
 import org.graylog2.indexer.ranges.IndexRange;
 import org.graylog2.indexer.results.ResultMessage;
 import org.graylog2.indexer.results.ScrollResult;
@@ -33,8 +29,9 @@ import org.graylog2.indexer.results.SearchResult;
 import org.graylog2.indexer.searches.Searches;
 import org.graylog2.indexer.searches.SearchesClusterConfig;
 import org.graylog2.indexer.searches.Sorting;
-import org.graylog2.plugin.indexer.searches.timeranges.AbsoluteRange;
+import org.graylog2.plugin.Message;
 import org.graylog2.plugin.cluster.ClusterConfigService;
+import org.graylog2.plugin.indexer.searches.timeranges.AbsoluteRange;
 import org.graylog2.rest.models.messages.responses.ResultMessageSummary;
 import org.graylog2.rest.models.search.responses.FieldStatsResult;
 import org.graylog2.rest.models.search.responses.HistogramResult;
@@ -42,7 +39,6 @@ import org.graylog2.rest.models.search.responses.TermsResult;
 import org.graylog2.rest.models.search.responses.TermsStatsResult;
 import org.graylog2.rest.models.search.responses.TimeRange;
 import org.graylog2.rest.models.system.indexer.responses.IndexRangeSummary;
-import org.graylog2.rest.resources.search.responses.QueryParseError;
 import org.graylog2.rest.resources.search.responses.SearchResponse;
 import org.graylog2.shared.rest.resources.RestResource;
 import org.graylog2.shared.security.RestPermissions;
@@ -52,15 +48,15 @@ import org.joda.time.Period;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.ForbiddenException;
-import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 
@@ -69,11 +65,14 @@ public abstract class SearchResource extends RestResource {
 
     protected final Searches searches;
     private final ClusterConfigService clusterConfigService;
+    private final DecoratorProcessor decoratorProcessor;
 
-    @Inject
-    public SearchResource(Searches searches, ClusterConfigService clusterConfigService) {
+    public SearchResource(Searches searches,
+                          ClusterConfigService clusterConfigService,
+                          DecoratorProcessor decoratorProcessor) {
         this.searches = searches;
         this.clusterConfigService = clusterConfigService;
+        this.decoratorProcessor = decoratorProcessor;
     }
 
     protected void validateInterval(String interval) {
@@ -99,11 +98,11 @@ public abstract class SearchResource extends RestResource {
         }
 
         final Iterable<String> split = Splitter.on(',').omitEmptyStrings().trimResults().split(fields);
-        final ArrayList<String> fieldList = Lists.newArrayList("timestamp");
+        final ArrayList<String> fieldList = Lists.newArrayList(Message.FIELD_TIMESTAMP);
 
         // skip the mandatory field timestamp
         for (String field : split) {
-            if ("timestamp".equals(field)) {
+            if (Message.FIELD_TIMESTAMP.equals(field)) {
                 continue;
             }
             fieldList.add(field);
@@ -113,14 +112,14 @@ public abstract class SearchResource extends RestResource {
     }
 
     protected org.graylog2.indexer.results.FieldStatsResult fieldStats(String field, String query, String filter,
-                                                                       org.graylog2.plugin.indexer.searches.timeranges.TimeRange timeRange) throws InvalidRangeFormatException {
+                                                                       org.graylog2.plugin.indexer.searches.timeranges.TimeRange timeRange) {
         try {
             return searches.fieldStats(field, query, filter, timeRange);
-        } catch (Searches.FieldTypeException e) {
+        } catch (FieldTypeException e) {
             try {
                 LOG.debug("Stats query failed, make sure that field [{}] is a numeric type. Retrying without numeric statistics to calculate the field's cardinality.", field);
                 return searches.fieldStats(field, query, filter, timeRange, true, false, true);
-            } catch (Searches.FieldTypeException e1) {
+            } catch (FieldTypeException e1) {
                 LOG.error("Retrieving field statistics for field {} failed while calculating the cardinality. Cause: {}", field, ExceptionUtils.getRootCauseMessage(e1));
                 throw new BadRequestException("Field " + field + " is not of a numeric type and the cardinality could not be calculated either.", e1);
             }
@@ -132,39 +131,45 @@ public abstract class SearchResource extends RestResource {
                                                                           String interval,
                                                                           String filter,
                                                                           org.graylog2.plugin.indexer.searches.timeranges.TimeRange timeRange,
-                                                                          boolean includeCardinality) throws InvalidRangeFormatException {
+                                                                          boolean includeCardinality) {
         try {
             return searches.fieldHistogram(
-                    query,
-                    field,
-                    Searches.DateHistogramInterval.valueOf(interval),
-                    filter,
-                    timeRange,
-                    includeCardinality);
-        } catch (Searches.FieldTypeException e) {
-            LOG.error("Field histogram query failed. Make sure that field [{}] is a numeric type.", field);
-            throw new BadRequestException();
+                query,
+                field,
+                Searches.DateHistogramInterval.valueOf(interval),
+                filter,
+                timeRange,
+                includeCardinality);
+        } catch (FieldTypeException e) {
+            final String msg = "Field histogram query failed. Make sure that field [" + field + "] is a numeric type.";
+            LOG.error(msg);
+            throw new BadRequestException(msg, e);
         }
     }
 
     protected TermsResult buildTermsResult(org.graylog2.indexer.results.TermsResult tr) {
-        return TermsResult.create(tr.took().millis(), tr.getTerms(), tr.getMissing(), tr.getOther(), tr.getTotal(), tr.getBuiltQuery());
+        return TermsResult.create(tr.tookMs(), tr.getTerms(), tr.getMissing(), tr.getOther(), tr.getTotal(), tr.getBuiltQuery());
     }
 
     protected TermsStatsResult buildTermsStatsResult(org.graylog2.indexer.results.TermsStatsResult tr) {
-        return TermsStatsResult.create(tr.took().millis(), tr.getResults(), tr.getBuiltQuery());
+        return TermsStatsResult.create(tr.tookMs(), tr.getResults(), tr.getBuiltQuery());
     }
 
-    protected SearchResponse buildSearchResponse(SearchResult sr, org.graylog2.plugin.indexer.searches.timeranges.TimeRange timeRange) {
-        return SearchResponse.create(sr.getOriginalQuery(),
-                sr.getBuiltQuery(),
-                indexRangeListToValueList(sr.getUsedIndices()),
-                resultMessageListtoValueList(sr.getResults()),
-                sr.getFields(),
-                sr.took().millis(),
-                sr.getTotalResults(),
-                timeRange.getFrom(),
-                timeRange.getTo());
+    protected SearchResponse buildSearchResponse(SearchResult sr,
+                                                 org.graylog2.plugin.indexer.searches.timeranges.TimeRange timeRange,
+                                                 boolean decorate,
+                                                 Optional<String> streamId) {
+        final SearchResponse result = SearchResponse.create(sr.getOriginalQuery(),
+            sr.getBuiltQuery(),
+            indexRangeListToValueList(sr.getUsedIndices()),
+            resultMessageListtoValueList(sr.getResults()),
+            sr.getFields(),
+            sr.tookMs(),
+            sr.getTotalResults(),
+            timeRange.getFrom(),
+            timeRange.getTo());
+
+        return decorate ? decoratorProcessor.decorate(result, streamId) : result;
     }
 
     protected Set<IndexRangeSummary> indexRangeListToValueList(Set<IndexRange> indexRanges) {
@@ -172,42 +177,38 @@ public abstract class SearchResource extends RestResource {
 
         for (IndexRange indexRange : indexRanges) {
             result.add(IndexRangeSummary.create(
-                    indexRange.indexName(),
-                    indexRange.begin(),
-                    indexRange.end(),
-                    indexRange.calculatedAt(),
-                    indexRange.calculationDuration()));
+                indexRange.indexName(),
+                indexRange.begin(),
+                indexRange.end(),
+                indexRange.calculatedAt(),
+                indexRange.calculationDuration()));
         }
 
         return result;
     }
 
     protected List<ResultMessageSummary> resultMessageListtoValueList(List<ResultMessage> resultMessages) {
-        final List<ResultMessageSummary> result = Lists.newArrayListWithCapacity(resultMessages.size());
-
-        for (ResultMessage resultMessage : resultMessages) {
+        return resultMessages.stream()
             // TODO module merge: migrate to resultMessage.getMessage() instead of Map<String, Object> via getFields()
-            result.add(ResultMessageSummary.create(resultMessage.highlightRanges, resultMessage.getMessage().getFields(), resultMessage.getIndex()));
-        }
-
-        return result;
+            .map((resultMessage) -> ResultMessageSummary.create(resultMessage.highlightRanges, resultMessage.getMessage().getFields(), resultMessage.getIndex()))
+            .collect(Collectors.toList());
     }
 
     protected FieldStatsResult buildFieldStatsResult(org.graylog2.indexer.results.FieldStatsResult sr) {
         return FieldStatsResult.create(
-                sr.took().millis(), sr.getCount(), sr.getSum(), sr.getSumOfSquares(), sr.getMean(),
-                sr.getMin(), sr.getMax(), sr.getVariance(), sr.getStdDeviation(), sr.getBuiltQuery(), sr.getCardinality());
+            sr.tookMs(), sr.getCount(), sr.getSum(), sr.getSumOfSquares(), sr.getMean(),
+            sr.getMin(), sr.getMax(), sr.getVariance(), sr.getStdDeviation(), sr.getBuiltQuery(), sr.getCardinality());
 
     }
 
     protected HistogramResult buildHistogramResult(org.graylog2.indexer.results.HistogramResult histogram) {
         final AbsoluteRange histogramBoundaries = histogram.getHistogramBoundaries();
         return HistogramResult.create(
-                histogram.getInterval().toString().toLowerCase(Locale.ENGLISH),
-                histogram.getResults(),
-                histogram.took().millis(),
-                histogram.getBuiltQuery(),
-                TimeRange.create(histogramBoundaries.getFrom(), histogramBoundaries.getTo()));
+            histogram.getInterval().toString().toLowerCase(Locale.ENGLISH),
+            histogram.getResults(),
+            histogram.tookMs(),
+            histogram.getBuiltQuery(),
+            TimeRange.create(histogramBoundaries.getFrom(), histogramBoundaries.getTo()));
     }
 
     protected Sorting buildSorting(String sort) {
@@ -233,58 +234,6 @@ public abstract class SearchResource extends RestResource {
         return output;
     }
 
-    protected BadRequestException createRequestExceptionForParseFailure(String query, SearchPhaseExecutionException e) {
-        LOG.warn("Unable to execute search: {}", e.getMessage());
-
-        QueryParseError errorMessage = QueryParseError.create(query, "Unable to execute search", e.getClass().getCanonicalName());
-
-        // We're so going to hell for this…
-        if (e.toString().contains("nested: QueryParsingException")) {
-            final QueryParser queryParser = new QueryParser("", new StandardAnalyzer());
-            try {
-                queryParser.parse(query);
-            } catch (ParseException parseException) {
-                // FIXME I have no idea why this is necessary but without that call currentToken will be null.
-                final ParseException exception = queryParser.generateParseException();
-                Token currentToken = exception.currentToken;
-                if (currentToken == null) {
-                    LOG.warn("No position/token available for ParseException.", parseException);
-                    errorMessage = QueryParseError.create(
-                            query,
-                            parseException.getMessage(),
-                            parseException.getClass().getCanonicalName());
-                } else {
-                    // scan for first usable token with position information
-                    int beginColumn = 0;
-                    int beginLine = 0;
-                    int endColumn = 0;
-                    int endLine = 0;
-                    while (currentToken != null && beginLine == 0) {
-                        beginColumn = currentToken.beginColumn;
-                        beginLine = currentToken.beginLine;
-                        endColumn = currentToken.endColumn;
-                        endLine = currentToken.endLine;
-                        currentToken = currentToken.next;
-                    }
-
-                    errorMessage = QueryParseError.create(
-                            query,
-                            beginColumn,
-                            beginLine,
-                            endColumn,
-                            endLine,
-                            parseException.getMessage(),
-                            parseException.getClass().getCanonicalName());
-                }
-            }
-        }
-
-        return new BadRequestException(Response
-                .status(Response.Status.BAD_REQUEST)
-                .entity(errorMessage)
-                .build());
-    }
-
     public void checkSearchPermission(String filter, String searchPermission) {
         if (isNullOrEmpty(filter) || "*".equals(filter)) {
             checkPermission(searchPermission);
@@ -306,8 +255,9 @@ public abstract class SearchResource extends RestResource {
 
             for (String streamId : streams) {
                 if (!isPermitted(RestPermissions.STREAMS_READ, streamId)) {
-                    LOG.warn("Not allowed to search with filter: [" + filter + "]. (Forbidden stream: " + streamId + ")");
-                    throw new ForbiddenException();
+                    final String msg = "Not allowed to search with filter: [" + filter + "]. (Forbidden stream: " + streamId + ")";
+                    LOG.warn(msg);
+                    throw new ForbiddenException(msg);
                 }
             }
         }
@@ -325,11 +275,11 @@ public abstract class SearchResource extends RestResource {
                     ScrollResult.ScrollChunk chunk = scroll.nextChunk();
                     while (chunk != null) {
                         LOG.debug("[{}] Writing scroll chunk with {} messages",
-                                scroll.getQueryHash(),
-                                chunk.getMessages().size());
+                            scroll.getQueryHash(),
+                            chunk.getMessages().size());
                         if (output.isClosed()) {
                             LOG.debug("[{}] Client connection is closed, client disconnected. Aborting scroll.",
-                                    scroll.getQueryHash());
+                                scroll.getQueryHash());
                             scroll.cancel();
                             return;
                         }
@@ -367,4 +317,5 @@ public abstract class SearchResource extends RestResource {
 
         return AbsoluteRange.create(from, to);
     }
+
 }

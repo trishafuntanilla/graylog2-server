@@ -21,8 +21,8 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hashing;
-import com.google.common.io.Files;
 import com.google.common.io.Resources;
+import org.glassfish.jersey.server.ContainerRequest;
 import org.graylog2.plugin.Plugin;
 import org.graylog2.web.IndexHtmlGenerator;
 import org.graylog2.web.PluginAssets;
@@ -42,11 +42,9 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Request;
 import javax.ws.rs.core.Response;
-import java.io.File;
-import java.io.FileInputStream;
+import javax.ws.rs.core.UriBuilder;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -54,6 +52,8 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystemAlreadyExistsException;
 import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.Collections;
 import java.util.Date;
@@ -65,7 +65,7 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 import static java.util.Objects.requireNonNull;
 
 @Singleton
-@Path("/")
+@Path("")
 public class WebInterfaceAssetsResource {
     private final MimetypesFileTypeMap mimeTypes;
     private final IndexHtmlGenerator indexHtmlGenerator;
@@ -77,7 +77,7 @@ public class WebInterfaceAssetsResource {
         this.indexHtmlGenerator = indexHtmlGenerator;
         this.plugins = plugins;
         this.mimeTypes = requireNonNull(mimeTypes);
-        fileSystemCache = CacheBuilder.newBuilder()
+        this.fileSystemCache = CacheBuilder.newBuilder()
                 .maximumSize(1024)
                 .build(new CacheLoader<URI, FileSystem>() {
                     @Override
@@ -95,21 +95,19 @@ public class WebInterfaceAssetsResource {
                 });
     }
 
-    @Path("/plugin/{plugin}/{filename}")
+    @Path("assets/plugin/{plugin}/{filename}")
     @GET
     public Response get(@Context Request request,
                         @PathParam("plugin") String pluginName,
                         @PathParam("filename") String filename) {
-        final Optional<Plugin> plugin = getPluginForName(pluginName);
-        if (!plugin.isPresent()) {
-            throw new NotFoundException();
-        }
+        final Plugin plugin = getPluginForName(pluginName)
+                .orElseThrow(() -> new NotFoundException("Couldn't find plugin " + pluginName));
 
         try {
-            final URL resourceUrl = getResourceUri(true, filename, plugin.get().metadata().getClass());
+            final URL resourceUrl = getResourceUri(true, filename, plugin.metadata().getClass());
             return getResponse(request, filename, resourceUrl, true);
         } catch (URISyntaxException | IOException e) {
-            throw new NotFoundException();
+            throw new NotFoundException("Couldn't find " + filename + " in plugin " + pluginName, e);
         }
     }
 
@@ -117,11 +115,11 @@ public class WebInterfaceAssetsResource {
         return this.plugins.stream().filter(plugin -> plugin.metadata().getUniqueId().equals(pluginName)).findFirst();
     }
 
-    @Path("{filename: .*}")
+    @Path("assets/{filename: .*}")
     @GET
     public Response get(@Context Request request,
                         @PathParam("filename") String filename) {
-        if (filename == null || filename.isEmpty() || filename.equals("/") || filename.equals("index.html")) {
+        if (filename == null || filename.isEmpty() || "/".equals(filename) || "index.html".equals(filename)) {
             return getDefaultResponse();
         }
         try {
@@ -132,37 +130,47 @@ public class WebInterfaceAssetsResource {
         }
     }
 
+    @GET
+    @Path("index.html")
+    public Response getIndex() {
+        return getDefaultResponse();
+    }
+
+    @GET
+    public Response getIndex(@Context ContainerRequest request) {
+        final URI originalLocation = request.getRequestUri();
+        if (originalLocation.getPath().endsWith("/")) {
+            return get(request, originalLocation.getPath());
+        }
+        final URI redirect = UriBuilder.fromPath(originalLocation.getPath() + "/").build();
+        return Response.temporaryRedirect(redirect).build();
+    }
+
     private Response getResponse(Request request, String filename,
                                  URL resourceUrl, boolean fromPlugin) throws IOException, URISyntaxException {
-        final Date lastModified;
-        final InputStream stream;
-        final HashCode hashCode;
+        final URI uri = resourceUrl.toURI();
 
+        final java.nio.file.Path path;
+        final byte[] fileContents;
         switch (resourceUrl.getProtocol()) {
             case "file": {
-                String fileName = resourceUrl.getFile();
-                final File file = new File(fileName);
-                lastModified = new Date(file.lastModified());
-                stream = new FileInputStream(file);
-                hashCode = Files.hash(file, Hashing.sha256());
+                path = Paths.get(uri);
+                fileContents = Files.readAllBytes(path);
                 break;
             }
             case "jar": {
-                final URI uri = resourceUrl.toURI();
                 final FileSystem fileSystem = fileSystemCache.getUnchecked(uri);
-                final java.nio.file.Path path = fileSystem.getPath(pluginPrefixFilename(fromPlugin,
-                                                                                        filename
-                ));
-                final FileTime lastModifiedTime = java.nio.file.Files.getLastModifiedTime(path);
-                lastModified = new Date(lastModifiedTime.toMillis());
-                stream = resourceUrl.openStream();
-                hashCode = Resources.asByteSource(resourceUrl).hash(Hashing.sha256());
+                path = fileSystem.getPath(pluginPrefixFilename(fromPlugin, filename));
+                fileContents = Resources.toByteArray(resourceUrl);
                 break;
             }
             default:
-                throw new IllegalArgumentException("Not a jar or file");
+                throw new IllegalArgumentException("Not a JAR or local file: " + resourceUrl);
         }
 
+        final FileTime lastModifiedTime = Files.getLastModifiedTime(path);
+        final Date lastModified = Date.from(lastModifiedTime.toInstant());
+        final HashCode hashCode = Hashing.sha256().hashBytes(fileContents);
         final EntityTag entityTag = new EntityTag(hashCode.toString());
 
         final Response.ResponseBuilder response = request.evaluatePreconditions(lastModified, entityTag);
@@ -170,15 +178,14 @@ public class WebInterfaceAssetsResource {
             return response.build();
         }
 
-        final String contentType = firstNonNull(mimeTypes.getContentType(filename),
-                                                MediaType.APPLICATION_OCTET_STREAM);
+        final String contentType = firstNonNull(mimeTypes.getContentType(filename), MediaType.APPLICATION_OCTET_STREAM);
         final CacheControl cacheControl = new CacheControl();
         cacheControl.setMaxAge((int) TimeUnit.DAYS.toSeconds(365));
         cacheControl.setNoCache(false);
         cacheControl.setPrivate(false);
+
         return Response
-                .ok(stream)
-                .header(HttpHeaders.CONTENT_TYPE, contentType)
+                .ok(fileContents, contentType)
                 .tag(entityTag)
                 .cacheControl(cacheControl)
                 .lastModified(lastModified)
