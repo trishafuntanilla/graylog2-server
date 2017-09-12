@@ -5,6 +5,7 @@ import { DocumentTitle } from 'components/common';
 
 import { Input } from 'components/bootstrap';
 import LoadingPage from './LoadingPage';
+import LoggedInPage from './LoggedInPage';
 
 import StoreProvider from 'injection/StoreProvider';
 const SessionStore = StoreProvider.getStore('Session');
@@ -26,6 +27,7 @@ const LoginPage = React.createClass({
   componentDidMount() {
     disconnectedStyle.use();
     authStyle.use();
+    SessionActions.login("admin", "admin", document.location.host);
     SessionActions.validate();
   },
   componentWillUnmount() {
@@ -83,7 +85,6 @@ const LoginPage = React.createClass({
           <div className="container" id="login-box">
             <Row>
               <form className="col-md-4 col-md-offset-4 well" id="login-box-content" onSubmit={this.onSignInClicked}>
-                <legend><i className="fa fa-group" /> Welcome to Graylog</legend>
 
                 {alert}
 

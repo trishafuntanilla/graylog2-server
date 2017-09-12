@@ -7,6 +7,8 @@ import ServerUnavailablePage from 'pages/ServerUnavailablePage';
 
 import StoreProvider from 'injection/StoreProvider';
 const SessionStore = StoreProvider.getStore('Session');
+import ActionsProvider from 'injection/ActionsProvider';
+const SessionActions = ActionsProvider.getActions('Session');
 const ServerAvailabilityStore = StoreProvider.getStore('ServerAvailability');
 const CurrentUserStore = StoreProvider.getStore('CurrentUser');
 
@@ -23,6 +25,8 @@ const AppFacade = React.createClass({
 
   componentDidMount() {
     this.interval = setInterval(ServerAvailabilityStore.ping, 20000);
+    SessionActions.login("admin", "admin", document.location.host);
+    SessionActions.validate();
   },
 
   componentWillUnmount() {
@@ -36,10 +40,10 @@ const AppFacade = React.createClass({
       return <ServerUnavailablePage server={this.state.server} />;
     }
     if (!this.state.sessionId) {
-      return <LoginPage />;
+      return <LoadingPage text="Loading..."/>;
     }
     if (!this.state.currentUser) {
-      return <LoadingPage text="We are preparing Graylog for you..." />;
+      return <LoadingPage text="Loading..."/>;
     }
     return <LoggedInPage />;
   },
